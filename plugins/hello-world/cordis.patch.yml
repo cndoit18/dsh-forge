@@ -1,0 +1,6 @@
+# dsh-forge hello-world bundle patch: mount the plugin row. The bare package
+# name resolves through the web profile's node_modules, where
+# `dsh plugin add link:...` links this package.
+- insert:
+    - id: hello-world
+      name: dsh-forge-plugin-hello-world

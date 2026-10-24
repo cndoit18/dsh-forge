@@ -1,0 +1,10 @@
+{
+  "name": "dsh-forge",
+  "engineVersion": "v0.21.11",
+  "toolchains": [
+    {
+      "name": "dsh",
+      "source": ".dagger/module/dsh"
+    }
+  ]
+}
