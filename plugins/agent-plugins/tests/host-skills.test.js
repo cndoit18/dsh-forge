@@ -33,7 +33,7 @@ test('Host activation exposes a real skill and its startup catalog through Conne
     await rm(home, { recursive: true, force: true })
   })
 
-  const root = join(home, '.agent', 'plugins')
+  const root = join(home, '.agents', 'plugins')
   const manifestPath = join(root, 'demo', 'plugin.json')
   await mkdir(dirname(manifestPath), { recursive: true })
   await writeFile(manifestPath, JSON.stringify({ $schema: SCHEMA, name: 'demo' }))

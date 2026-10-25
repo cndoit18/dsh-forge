@@ -103,7 +103,7 @@ test('installs a repository root without copying Git metadata', async (t) => {
 
 test('install RPC is owner-only and reads the refreshed catalog after installation', async () => {
   let catalog = { plugins: [], diagnostics: [] }
-  const installed = { name: 'demo', root: '/home/user/.agent/plugins/demo', manifest: { name: 'demo' } }
+  const installed = { name: 'demo', root: '/home/user/.agents/plugins/demo', manifest: { name: 'demo' } }
   const handler = createAgentPluginsRpcHandler(() => catalog, {
     install: async spec => {
       assert.equal(spec, 'git@github.com:org/repo.git&path:/plugins/demo')

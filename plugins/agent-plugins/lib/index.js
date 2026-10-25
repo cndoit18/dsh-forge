@@ -11,7 +11,7 @@ export const inject = ['skills', 'connection', 'webServer']
 
 /** Mount Agent Plugin discovery and the strict Skills provider. */
 export async function apply(ctx) {
-  const pluginsDirectory = join(homedir(), '.agent', 'plugins')
+  const pluginsDirectory = join(homedir(), '.agents', 'plugins')
   let invalidateSkills = () => {}
   ctx.effect(() => ctx.skills.registerProvider((control) => {
     invalidateSkills = control.invalidate
