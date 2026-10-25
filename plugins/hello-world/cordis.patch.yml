@@ -3,4 +3,4 @@
 # `dsh plugin add link:...` links this package.
 - insert:
     - id: hello-world
-      name: dsh-forge-plugin-hello-world
+      name: "@dshforge/hello-world"
