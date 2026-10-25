@@ -5,6 +5,10 @@
     {
       "name": "dsh",
       "source": ".dagger/module/dsh"
+    },
+    {
+      "name": "npm",
+      "source": ".dagger/module/npm"
     }
   ]
 }
