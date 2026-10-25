@@ -39,15 +39,15 @@ function plugin(catalog, name) {
 
 test('a missing user plugin directory is empty and no workspace directory is consulted', async (t) => {
   const root = await workspace(t)
-  const workspaceOnly = join(root, 'workspace', '.agent', 'plugins')
+  const workspaceOnly = join(root, 'workspace', '.agents', 'plugins')
   await write(workspaceOnly, 'workspace-only/plugin.json', manifest('workspace-only'))
-  const catalog = await discoverAgentPlugins({ pluginsDirectory: join(root, 'home', '.agent', 'plugins') })
+  const catalog = await discoverAgentPlugins({ pluginsDirectory: join(root, 'home', '.agents', 'plugins') })
   assert.deepEqual(catalog, { plugins: [], diagnostics: [] })
 })
 
 test('discovers only direct packages and immediate skill directories', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'alpha/plugin.json', manifest('alpha', { version: '1.2.0' }))
   await write(home, 'alpha/skills/good/SKILL.md', skill('good'))
   await write(home, 'alpha/skills/flat.md', skill('flat'))
@@ -64,7 +64,7 @@ test('discovers only direct packages and immediate skill directories', async (t)
 
 test('unknown manifest fields and non-object extensions are reported but do not reject the plugin', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'alpha/plugin.json', manifest('alpha', {
     extensions: false,
     futureField: { ignored: true },
@@ -81,7 +81,7 @@ test('unknown manifest fields and non-object extensions are reported but do not 
 
 test('unimplemented extension namespaces are ignored without validating their values', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'alpha/plugin.json', manifest('alpha', {
     extensions: { 'com.example.client': false, 'ai.deepseek.dsh': { hooks: { enabled: true } } },
   }))
@@ -95,7 +95,7 @@ test('unimplemented extension namespaces are ignored without validating their va
 
 test('a fatal manifest error rejects the package without discovering its skills', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'Bad_Name/plugin.json', manifest('Bad_Name'))
   await write(home, 'Bad_Name/skills/good/SKILL.md', skill('good'))
 
@@ -107,7 +107,7 @@ test('a fatal manifest error rejects the package without discovering its skills'
 
 test('skill validation failures stay isolated to the offending skill', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'alpha/plugin.json', manifest('alpha'))
   await write(home, 'alpha/skills/good/SKILL.md', skill('good'))
   await write(home, 'alpha/skills/mismatch/SKILL.md', skill('other-name'))
@@ -121,7 +121,7 @@ test('skill validation failures stay isolated to the offending skill', async (t)
 
 test('Agent Skills optional fields retain their validated values', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'alpha/plugin.json', manifest('alpha'))
   await write(home, 'alpha/skills/good/SKILL.md', skill('good', 'A valid description.', [
     'license: Apache-2.0',
@@ -142,7 +142,7 @@ test('Agent Skills optional fields retain their validated values', async (t) => 
 
 test('realpath escapes use the narrowest component failure boundary', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'alpha/plugin.json', manifest('alpha'))
   await write(home, 'alpha/skills/good/SKILL.md', skill('good'))
   await write(home, 'alpha/mcp.json', mcp({}))
@@ -162,7 +162,7 @@ test('realpath escapes use the narrowest component failure boundary', async (t) 
 
 test('a manifest symlink escaping its package root rejects the package', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'alpha/skills/good/SKILL.md', skill('good'))
   await write(root, 'outside/plugin.json', manifest('alpha'))
   await symlink(join(root, 'outside/plugin.json'), join(home, 'alpha/plugin.json'))
@@ -174,7 +174,7 @@ test('a manifest symlink escaping its package root rejects the package', async (
 
 test('invalid MCP configuration disables only MCP for that package', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'alpha/plugin.json', manifest('alpha'))
   await write(home, 'alpha/skills/good/SKILL.md', skill('good'))
   await write(home, 'alpha/mcp.json', JSON.stringify({ $schema: MCP_SCHEMA, mcpServers: {}, extra: true }))
@@ -188,7 +188,7 @@ test('invalid MCP configuration disables only MCP for that package', async (t) =
 
 test('an invalid MCP server is skipped while other servers and skills remain valid', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'alpha/plugin.json', manifest('alpha'))
   await write(home, 'alpha/skills/good/SKILL.md', skill('good'))
   await write(home, 'alpha/mcp.json', mcp({
@@ -204,7 +204,7 @@ test('an invalid MCP server is skipped while other servers and skills remain val
 
 test('MCP schema and transport validation accepts both supported types and legacy SSE for later optional handling', async (t) => {
   const root = await workspace(t)
-  const home = join(root, 'home', '.agent', 'plugins')
+  const home = join(root, 'home', '.agents', 'plugins')
   await write(home, 'alpha/plugin.json', manifest('alpha'))
   await write(home, 'alpha/mcp.json', mcp({
     local: { type: 'stdio', command: './bin/server', args: ['${PLUGIN_DATA}/cache'] },

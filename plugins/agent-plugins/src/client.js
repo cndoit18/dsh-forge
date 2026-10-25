@@ -18,7 +18,7 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     const NS = 'agentPlugins'
     const en = {
-      nav: 'Agent plugins', title: 'Agent plugins', intro: 'Inspect plugins and capabilities in ~/.agent/plugins/',
+      nav: 'Agent plugins', title: 'Agent plugins', intro: 'Inspect plugins and capabilities in ~/.agents/plugins/',
       search: 'Search plugins', emptySearch: 'No matching plugins.',
       loading: 'Loading Agent Plugins…', failed: 'Agent Plugins could not be loaded.', retry: 'Retry',
       back: 'Agent plugins', overview: 'Overview', skills: 'Skills', mcp: 'MCP', files: 'Files',
@@ -40,7 +40,7 @@ noSkills: 'This plugin provides no Skills.', noMcp: 'This plugin configures no M
       fillExample: 'Fill example',
     }
     const zh = {
-      nav: 'Agent 插件', title: 'Agent 插件', intro: '查看 ~/.agent/plugins/ 中的插件及其能力',
+      nav: 'Agent 插件', title: 'Agent 插件', intro: '查看 ~/.agents/plugins/ 中的插件及其能力',
       search: '搜索插件', emptySearch: '没有找到匹配的插件。',
       loading: '正在加载 Agent 插件…', failed: 'Agent 插件加载失败。', retry: '重试',
       back: 'Agent 插件', overview: '概览', skills: 'Skills', mcp: 'MCP', files: '文件',

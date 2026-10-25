@@ -68,7 +68,7 @@ test('Host Git install refreshes the catalog, registers the Skill, and starts MC
   assert.equal(result.status, 200)
   assert.equal(result.body.result.ok, true)
   assert.equal(result.body.result.value.name, 'demo')
-  await assert.rejects(stat(join(home, '.agent', 'plugins', 'demo', '.git')), { code: 'ENOENT' })
+  await assert.rejects(stat(join(home, '.agents', 'plugins', 'demo', '.git')), { code: 'ENOENT' })
 
   const catalog = await post(calls[0], 'catalog', null)
   assert.equal(catalog.body.result.value.plugins[0].manifest.name, 'demo')
@@ -78,5 +78,5 @@ test('Host Git install refreshes the catalog, registers the Skill, and starts MC
   const tool = ctx.tools.get(`mcp__${mcpServerName('demo', 'local')}__add`)
   const value = await tool.execute({ a: 2, b: 3 }, { signal: new AbortController().signal })
   assert.equal(tool.output.render({ a: 2, b: 3 }, value)[0].text, '5')
-  assert.equal(JSON.parse(await readFile(join(home, '.agent', 'plugins', 'demo', 'plugin.json'), 'utf8')).name, 'demo')
+  assert.equal(JSON.parse(await readFile(join(home, '.agents', 'plugins', 'demo', 'plugin.json'), 'utf8')).name, 'demo')
 })

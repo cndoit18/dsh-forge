@@ -1,6 +1,6 @@
 # dsh-forge Agent Plugins
 
-Adds Agent Plugins v1 discovery to DeepSeek Harness Web. The bundle scans only direct package directories under `~/.agent/plugins/`; workspace `.agent/plugins/` directories are not scanned or merged.
+Adds Agent Plugins v1 discovery to DeepSeek Harness Web. The bundle scans only direct package directories under `~/.agents/plugins/`; workspace `.agents/plugins/` directories are not scanned or merged.
 
 ## Supported components
 
@@ -13,7 +13,7 @@ The Settings → Agent 插件 section provides Git installation and shows the st
 
 ## Git installation
 
-Settings → Agent 插件 → 从 Git 安装 accepts repository specs and installs the selected package into `~/.agent/plugins/<manifest.name>`:
+Settings → Agent 插件 → 从 Git 安装 accepts repository specs and installs the selected package into `~/.agents/plugins/<manifest.name>`:
 
 ```text
 https://github.com/org/repo.git
@@ -50,12 +50,12 @@ For the complete dsh-forge verification, install both bundles and inject an Agen
 dagger --debug --progress=plain call dsh web \
   --plugins ./plugins/hello-world \
   --plugins ./plugins/agent-plugins \
-  with-directory --path /root/.agent/plugins/demo \
+  with-directory --path /root/.agents/plugins/demo \
     --source ./plugins/agent-plugins/tests/fixtures/agent-plugin \
   up --ports 3080:3080
 ```
 
-Keep the authenticated startup URL private. The container sees `/root/.agent/plugins/`, not the macOS host's `~/.agent/plugins/`.
+Keep the authenticated startup URL private. The container sees `/root/.agents/plugins/`, not the macOS host's `~/.agents/plugins/`.
 
 ## Known limitations
 

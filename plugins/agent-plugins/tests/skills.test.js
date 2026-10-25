@@ -11,7 +11,7 @@ const SCHEMA = 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json'
 
 async function fixture(t) {
   const home = await mkdtemp(join(tmpdir(), 'dsh-agent-skills-'))
-  const pluginsDirectory = join(home, '.agent', 'plugins')
+  const pluginsDirectory = join(home, '.agents', 'plugins')
   t.after(() => rm(home, { recursive: true, force: true }))
   return pluginsDirectory
 }
