@@ -1,0 +1,68 @@
+{
+  "name": "@dshforge/agent-plugins",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent Plugins v1 Skills and MCP support for DeepSeek Harness Web.",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/",
+    "schemas/",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.3 <0.3.0",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings-general",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-util-workspace-path": ">=0.2.1-rc.3 <0.3.0",
+    "ajv": "^8.17.1",
+    "execa": "^9.6.0",
+    "yaml": "^2.4.2"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-client-connection": ">=0.2.1-rc.3 <0.3.0",
+    "@deepseek-ai/dsh-mcp-client": ">=0.2.1-rc.3 <0.3.0",
+    "@deepseek-ai/dsh-skill": ">=0.2.1-rc.3 <0.3.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-client-connection": ">=0.2.1-rc.3 <0.3.0",
+    "@deepseek-ai/dsh-mcp-client": ">=0.2.1-rc.3 <0.3.0",
+    "@deepseek-ai/dsh-skill": ">=0.2.1-rc.3 <0.3.0",
+    "@deepseek-ai/dsh-system-prompt": ">=0.2.1-rc.3 <0.3.0",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3 <0.3.0",
+    "@modelcontextprotocol/client": "2.2.0",
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.2.0",
+    "esbuild": "^0.25.0",
+    "zod": "4.4.3"
+  }
+}

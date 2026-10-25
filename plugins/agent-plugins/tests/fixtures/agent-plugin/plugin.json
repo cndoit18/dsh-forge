@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "demo",
+  "version": "1.0.0",
+  "description": "验证 Agent Plugins 的 Skills 与 MCP 加载。",
+  "author": {
+    "name": "dsh-forge"
+  },
+  "license": "MIT"
+}

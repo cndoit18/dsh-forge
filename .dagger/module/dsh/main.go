@@ -22,7 +22,7 @@ type Dsh struct{}
 // The web process logs to standard output: run Web in the foreground to see
 // the authenticated URL line, or `up --ports 3080:3080` to tunnel the port.
 func (m *Dsh) Web(ctx context.Context,
-	// Repository root containing DSH and its Git metadata.
+	// Repository root containing the DSH source.
 	// +defaultPath="/"
 	// +ignore=[".dagger", "DESIGN.md", "**/node_modules", "**/lib", "**/*.tsbuildinfo", "**/apps/web/dist", "**/.artifacts", "**/.dsh-build", "**/.dsh-report", ".env", "**/.env"]
 	source *dagger.Directory,
@@ -78,8 +78,8 @@ func (m *Dsh) webContainer(ctx context.Context, source *dagger.Directory, plugin
 		WithExec([]string{"corepack", "enable"}).
 		WithEnvVariable("CI", "true").
 		WithExec([]string{"pnpm", "install", "--frozen-lockfile"}).
-		WithoutEnvVariable("CI")
-
+		WithoutEnvVariable("CI").
+		WithEnvVariable("DSH_CLIENT_COMMIT_HASH", "0000000000000000000000000000000000000000")
 	container := base.WithExec([]string{"pnpm", "run", "build"})
 
 	if len(built) > 0 {

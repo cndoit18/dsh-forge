@@ -1,0 +1,5 @@
+# Mount one global Agent Plugins host. Its browser half contributes the
+# Settings → Agent 插件 section through the settings slot.
+- insert:
+    - id: agent-plugins
+      name: "@dshforge/agent-plugins"
