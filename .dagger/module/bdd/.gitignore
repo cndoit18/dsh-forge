@@ -1,0 +1,8 @@
+/sdk
+/**/node_modules/**
+/**/.pnpm-store/**
+/.bddgen
+/.e2e
+/test-results
+/playwright-report
+/.env
