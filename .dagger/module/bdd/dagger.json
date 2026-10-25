@@ -1,0 +1,17 @@
+{
+  "name": "bdd",
+  "engineVersion": "v0.21.11",
+  "sdk": {
+    "source": "typescript"
+  },
+  "dependencies": [
+    {
+      "name": "aimock",
+      "source": "../aimock"
+    },
+    {
+      "name": "web",
+      "source": "../dsh"
+    }
+  ]
+}

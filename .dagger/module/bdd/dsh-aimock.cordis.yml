@@ -1,0 +1,19 @@
+- id: llm-pi-ai
+  config:
+    providers:
+      bdd-model:
+        apiKeyEnv: DSH_MODEL_API_KEY
+        api: openai-completions
+        baseURL: !!js process.env.DSH_MODEL_BASE_URL
+        compat:
+          supportsDeveloperRole: false
+          maxTokensField: max_tokens
+        models:
+          - id: !!js process.env.DSH_MODEL_ID
+            contextWindow: 128000
+            maxTokens: 8000
+
+- id: agent-default-model
+  config:
+    provider: bdd-model
+    model: !!js process.env.DSH_MODEL_ID

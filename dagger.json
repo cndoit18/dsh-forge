@@ -3,6 +3,10 @@
   "engineVersion": "v0.21.11",
   "toolchains": [
     {
+      "name": "bdd",
+      "source": ".dagger/module/bdd"
+    },
+    {
       "name": "dsh",
       "source": ".dagger/module/dsh"
     },

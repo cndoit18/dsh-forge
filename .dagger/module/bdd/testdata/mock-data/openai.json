@@ -1,0 +1,38 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "hello dagger",
+        "model": "gpt-4o-mini"
+      },
+      "response": {
+        "content": "aimock fixture loaded"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "exercise the AI gate",
+        "model": "gpt-4o-mini"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "complete_step",
+            "arguments": {
+              "status": "passed",
+              "summary": "Aimock completed the e2e AI gate."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "model": "gpt-4o-mini"
+      },
+      "response": {
+        "content": "aimock fixture loaded"
+      }
+    }
+  ]
+}
