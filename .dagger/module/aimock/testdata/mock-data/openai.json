@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "hello dagger"
+      },
+      "response": {
+        "content": "aimock fixture loaded"
+      }
+    }
+  ]
+}
