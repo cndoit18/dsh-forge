@@ -9,6 +9,7 @@ on:
       - "plugins/*/package.json"
 
 permissions:
+  id-token: write
   contents: read
 
 concurrency:
@@ -32,7 +33,6 @@ jobs:
 
       - name: Publish changed plugin packages
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           PUSH_BASE: ${{ github.event.before }}
         run: |
           set -euo pipefail
@@ -48,4 +48,5 @@ jobs:
 
           dagger --progress=plain call npm publish \
             "${packages[@]}" \
-            --token env:NPM_TOKEN
+            --oidc-request-url "$ACTIONS_ID_TOKEN_REQUEST_URL" \
+            --oidc-request-token env:ACTIONS_ID_TOKEN_REQUEST_TOKEN

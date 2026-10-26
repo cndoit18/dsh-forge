@@ -3,6 +3,10 @@
   "version": "0.1.2",
   "type": "module",
   "description": "Hello-world client plugin for dsh-forge: a quiet status bar in the shell.bottom slot, styled with the dsh-forge DESIGN.md tokens.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cndoit18/dsh-forge.git"
+  },
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
