@@ -1,6 +1,6 @@
 {
   "name": "@dshforge/hello-world",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Hello-world client plugin for dsh-forge: a quiet status bar in the shell.bottom slot, styled with the dsh-forge DESIGN.md tokens.",
   "main": "lib/index.js",
