@@ -1,61 +1,93 @@
-# dsh-forge-plugin-hello-world
+---
+description: "A minimal DeepSeek Harness Web client plugin that adds a status bar to the root shell.bottom slot."
+kind: "package-bundle"
+---
 
-A hello-world client plugin for the DeepSeek Harness Web GUI, built and
-installed by the `dsh-forge` Dagger module. It fills the root-scoped
-`shell.bottom` slot with a quiet, full-width status bar, so every screen —
-including the empty state — shows that the plugin loaded. Because it installs
-as a profile bundle, it also appears as an independent plugin in the Web
-Plugins page (enable/disable), not just as an anonymous loader row.
+# @dshforge/hello-world
 
-Styling follows `DESIGN.md`: system font stack, 13px/12px type, 8px rhythm,
-a 0.5px hairline top edge, semantic `--dsw-alias-*` tokens for theme parity,
-and green reserved for status.
+## Summary
 
-## Package layout
+Install this Profile Bundle through dsh-forge to verify that an external Web client plugin builds, loads, and appears in the Plugins page. The plugin fills the root-scoped `shell.bottom` slot with a full-width status bar on every screen, including the empty state. Its fixed content and semantic styling make it a small starting point for other client plugins.
 
-- `package.json` — the bundle and client declarations:
-  `dsh.bundle.patch` names this package's patch file, and `dsh.client`
-  declares the browser half. `lib/` holds the package's built artifacts,
-  following the layout of DSH's own packages.
-- `cordis.patch.yml` — the bundle patch: inserts the loader row. The bare
-  package name resolves through the web profile's `node_modules`, where
-  `dsh plugin add link:...` links this package.
-- `lib/index.js` — host half. Empty `apply`; the row exists so the host's
-  client-modules scan discovers this package and serves the browser bundle at
-  `/plugins/dsh-forge-plugin-hello-world/client.js`.
-- `lib/client.js` — browser half, a hand-written lazy-CJS bundle registered
-  through `window.__ModuleLoader__.load({ id, factory })`. No build step: the
-  factory receives the module-table `require`, pulls `react` from the platform
-  seed, injects one `data-plugin`-tagged stylesheet, and returns the client
-  plugin (`inject: ['slots']`, `apply` registering into `shell.bottom`).
+## Table of Contents
 
-Plugins that need compilation declare a `scripts.build`; the Dagger module
-runs `pnpm install && pnpm run build` for those in a per-plugin container.
+- [Use this package](#use-this-package)
+- [Understand the implementation](#understand-the-implementation)
+- [Further Exploration](#further-exploration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
 
-## Build and install
+-----
 
-`dsh-forge`'s Dagger `Web` function takes the plugins to install as an
-explicit list — one `--plugins` flag per plugin package directory, built and
-installed in parallel. Omitting the flag serves a clean web with no plugins.
+<a id="use-this-package"></a>
+## Use this package
+
+Run the Dagger module from the dsh-forge repository root and pass this package directory through `--plugins`:
 
 ```sh
-dagger call dsh web \
+dagger --debug --progress=plain call dsh web \
   --plugins ./plugins/hello-world \
-  --plugins ./plugins/a-second-plugin \
   up --ports 3080:3080
 ```
 
-Adding another plugin is passing one more `--plugins` flag — no patch file
-edits. Each install lands as a linked bundle in the web profile, so the
-Plugins page lists it independently.
+Open `http://127.0.0.1:3080/`. A 40-pixel status bar below the main columns shows **Hello, World**, a green status dot, and the mounted-slot message. The bundle also appears independently in the Web Plugins page, where it can be enabled or disabled.
 
-## Run
+The `--plugins` flag is repeatable and selects every plugin to build and install. Omitting it starts Web without external plugins; adding another plugin requires another flag rather than a manual Cordis configuration edit. Startup output includes an authenticated `dsh web:` URL whose process token is a credential: do not publish, commit, or reuse it for another process.
 
-```sh
-# 隧道方式：浏览器访问 http://127.0.0.1:3080/，--debug --progress=plain 可见构建/安装日志
-dagger --progress=plain call dsh web --debug --plugins ./plugins/hello-world up --ports 3080:3080
-```
+-----
 
-The web process logs to standard output (including the authenticated
-`dsh web: ...` URL line) — no log files or helper functions. The URL carries
-the process launch token: treat it as this web process's credential.
+<a id="understand-the-implementation"></a>
+## Understand the implementation
+
+<details>
+<summary>Implementation internals — click to expand</summary>
+
+| Path | Responsibility |
+|---|---|
+| `package.json` | Declares the Host and Client exports, the bundle patch through `dsh.bundle.patch`, and the Web client through `dsh.client`. |
+| `cordis.patch.yml` | Inserts the `hello-world` Loader row using the bare `@dshforge/hello-world` package name. |
+| `lib/index.js` | Provides an intentionally empty Host `apply` so client-module discovery can find the package and serve its browser half. |
+| `lib/client.js` | Registers the browser module, injects the plugin-owned stylesheet, and registers the status component into `shell.bottom`. |
+
+The browser artifact is a hand-written lazy-CJS bundle registered through `window.__ModuleLoader__.load`. Its factory receives the module-table `require` and resolves React from the platform baseline. The package has no build script, so this artifact is edited directly and must not acquire private runtime dependencies.
+
+The client calls `ctx.slots.inject('shell.bottom', ...)` so registration follows the declaring slot's lifetime. Styling follows [DESIGN.md](../../DESIGN.md): the system font stack, an 8-pixel spacing rhythm, a hairline top edge, and semantic `--dsw-alias-*` tokens with fallbacks for light and dark themes.
+
+</details>
+
+-----
+
+<a id="further-exploration"></a>
+## Further Exploration
+
+- [Design constraints](../../DESIGN.md) — dsh-forge's semantic tokens, typography, layout, and theme requirements.
+- [Client modules](../../third_party/deepseek-harness/docs/subsystems/client-modules.md) — DSH's `dsh.client` declarations, module graph, and browser artifact loading.
+- [Slots reference](../../third_party/deepseek-harness/docs/subsystems/slots.md) — slot ownership, declaration, and registration lifetimes.
+- [Agent Plugins](../agent-plugins/README.md) — the project's Host-and-Client plugin example.
+
+-----
+
+<a id="model-experience"></a>
+## Model Experience
+
+None, as the package adds browser presentation only and contributes no model-visible context, tools, or skills.
+
+#### KV Cache effect
+
+No direct effect; enabling or disabling the status bar does not change model requests or their reusable prefixes.
+
+<a id="known-limitations-and-deferred-work"></a>
+## Known Limitations and Deferred Work
+
+- **Fixed demonstration behavior** — the status text, 40-pixel height, and `shell.bottom` placement are not configurable, and the bar exposes no interactive actions.
+
+<a id="dev-note"></a>
+### Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+The package deliberately keeps its built artifacts under `lib/` and declares no `scripts.build`. For another plugin that does declare a build script, the dsh-forge Dagger module runs `pnpm install && pnpm run build` in a per-plugin container before installation.
+
+</details>
