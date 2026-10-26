@@ -22,4 +22,13 @@ hooks = [
     files = "^plugins/",
     pass_filenames = false,
   },
+  {
+    id = "sync-plugin-licenses",
+    name = "Synchronize plugin licenses",
+    language = "system",
+    entry = "python scripts/sync_plugin_licenses.py",
+    stages = ["pre-commit"],
+    always_run = true,
+    pass_filenames = false,
+  },
 ]
