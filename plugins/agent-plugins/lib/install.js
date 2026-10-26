@@ -2,7 +2,7 @@ import { execa } from 'execa'
 import { cp, mkdir, mkdtemp, readFile, rename, rm, rmdir } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { resolveExistingInside } from './paths.js'
 import { errorMessage, invalidAgentPlugin, validateManifest } from './validation.js'
 
@@ -77,6 +77,7 @@ export async function installAgentPlugin({ pluginsDirectory, spec, signal }) {
     }
     await runGit(temporary, ['-C', repository, 'fetch', '--depth', '1', 'origin', parsed.ref ?? 'HEAD'], signal)
     await runGit(temporary, ['-C', repository, 'checkout', '--detach', 'FETCH_HEAD'], signal)
+    await runGit(temporary, ['-C', repository, 'submodule', 'update', '--init', '--recursive', '--', parsed.path ?? '.'], signal)
 
     const root = await resolveExistingInside(repository, join(repository, parsed.path ?? ''))
     const manifestPath = join(root, 'plugin.json')
@@ -92,7 +93,7 @@ export async function installAgentPlugin({ pluginsDirectory, spec, signal }) {
     const staging = join(pluginsDirectory, `.${manifest.name}.install-${randomUUID()}`)
     await cp(root, staging, {
       recursive: true, force: false, errorOnExist: true, verbatimSymlinks: true,
-      filter: source => source !== join(root, '.git'),
+      filter: source => basename(source) !== '.git',
     })
     try {
       await mkdir(destination)
