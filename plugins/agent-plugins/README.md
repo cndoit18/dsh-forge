@@ -34,6 +34,16 @@ git+ssh://git@github.com/org/repo.git#<commit-sha>&path:/plugins/demo
 - HTTP header values and stdio environment values are not sent to the browser catalog. The UI displays URLs, commands, arguments, working directories, and header names only.
 - Document Preview requires a mounted Session surface. The settings section stays open with an explanatory message when none exists.
 
+## OAuth for Streamable HTTP MCP
+
+For an HTTP server with no configured headers, activation probes the endpoint with a bounded GET. A Bearer 401 response enables a loopback OAuth forwarder; other servers keep the existing direct connection, and configured-header behavior is unchanged.
+
+The forwarder uses the MCP SDK for protected-resource and authorization-server discovery, Dynamic Client Registration, PKCE, authorization-code exchange, and refresh-token rotation. Credentials and the preferred loopback callback URL are stored in a per-server 0600 JSON file under `$DSH_HOME/agent-plugins/data/`. If the previous callback port is unavailable, a new callback URL is registered and the previous OAuth credentials are discarded.
+
+Settings → Agent 插件 → MCP shows the authorization state. The authorization button follows `ui-chat.linkOpening`: the Sidebar Browser when selected and available, otherwise the default browser. No browser window opens without a user action. Successful callback pages attempt `window.close()` and retain a fallback message if the browser blocks it; error pages remain visible. Success and error pages use the DSH system font, semantic surfaces and status colors, and light/dark themes. Callback responses carry no credentials, and OAuth authorization URLs are available only to owner peers.
+
+The forwarder listens on `127.0.0.1` by default. For isolated container port-forwarding tests, `AGENT_PLUGINS_OAUTH_BIND_HOST=0.0.0.0` explicitly allows binding to the container address; do not use that override on an untrusted network.
+
 ## Build and test
 
 ```sh
@@ -62,3 +72,4 @@ Keep the authenticated startup URL private. The container sees `/root/.agents/pl
 - Hooks and other client extension types are not implemented.
 - `PLUGIN_DATA` persistence across container recreation requires a durable volume for `$DSH_HOME/agent-plugins/data/`; the default Dagger home is ephemeral.
 - Configured-header HTTP endpoints use a redirect-denying loopback proxy for every request. Any 301, 302, 303, 307, or 308 response is rejected, regardless of origin; configured headers are not a portable secret mechanism or authorization to forward them to another origin.
+- OAuth discovery requires the unauthenticated probe to return a Bearer 401; servers that challenge only a specific non-GET MCP request are not detected. OAuth forwarding buffers request bodies up to 16 MiB so an authorized retry can replay them.

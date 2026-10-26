@@ -5,6 +5,7 @@ import { pipeline } from 'node:stream/promises'
 import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import * as McpClient from '@deepseek-ai/dsh-mcp-client'
+import { createMcpOAuthSession } from './mcp-oauth.js'
 import { resolveLaunchInside } from './paths.js'
 import { errorMessage, invalidAgentPlugin } from './validation.js'
 
@@ -65,7 +66,10 @@ export async function createMcpClientConfig({ plugin, server, dataDirectory }) {
 }
 
 /** Mount every valid server independently; one failure never blocks siblings. */
-export async function mountAgentPluginMcpServers(ctx, plugins, { dataDirectory }) {
+export async function mountAgentPluginMcpServers(ctx, plugins, {
+  dataDirectory, oauthSessions = new Map(), fetch: fetchFn = fetch,
+  oauthBindHost = process.env.AGENT_PLUGINS_OAUTH_BIND_HOST ?? '127.0.0.1',
+}) {
   const proxies = []
   const lifecycle = { disposed: false }
   ctx.effect(() => async () => {
@@ -79,7 +83,9 @@ export async function mountAgentPluginMcpServers(ctx, plugins, { dataDirectory }
         let proxy
         try {
           const config = await createMcpClientConfig({ plugin, server, dataDirectory })
-          const guarded = await guardMcpEndpoint(server, config, proxies, lifecycle)
+          const guarded = await guardMcpEndpoint({
+            plugin, server, config, proxies, lifecycle, dataDirectory, oauthSessions, fetchFn, oauthBindHost,
+          })
           proxy = guarded.proxy
           if (lifecycle.disposed) throw new Error('Agent Plugins mount was disposed during startup')
           return await ctx.plugin(McpClient, guarded.config)
@@ -101,22 +107,71 @@ export async function mountAgentPluginMcpServers(ctx, plugins, { dataDirectory }
 }
 
 /** Refuse every redirect response for credentialed endpoints, per actual response. */
-async function guardMcpEndpoint(server, config, proxies, lifecycle) {
-  if (server.type !== 'streamable-http' || Object.keys(server.headers ?? {}).length === 0) return { config, proxy: undefined }
-  const proxy = await createRedirectGuard(server.url)
+async function guardMcpEndpoint({ plugin, server, config, proxies, lifecycle, dataDirectory, oauthSessions, fetchFn, oauthBindHost }) {
+  if (server.type !== 'streamable-http') return { config, proxy: undefined }
+  const hasConfiguredHeaders = Object.keys(server.headers ?? {}).length > 0
+  const key = `${plugin.directoryName}/${server.name}`
+  const oauth = !hasConfiguredHeaders && await requiresOAuth(server.url, fetchFn)
+    ? await createMcpOAuthSession({
+        serverUrl: server.url,
+        stateFile: join(dataDirectory, plugin.directoryName, `${mcpServerName(plugin.directoryName, server.name)}.oauth.json`),
+      })
+    : undefined
+  if (!hasConfiguredHeaders && !oauth) return { config, proxy: undefined }
+  const proxy = await createRedirectGuard(server.url, {
+    oauth, oauthBindHost,
+    onClose: () => {
+      if (oauth && oauthSessions.get(key) === oauth) oauthSessions.delete(key)
+    },
+  })
   if (lifecycle.disposed) {
     await proxy.close()
     throw new Error('Agent Plugins mount was disposed during proxy creation')
   }
   proxies.push(proxy)
+  if (oauth) {
+    oauthSessions.set(key, oauth)
+    config = {
+      ...config,
+      reconnect: { ...config.reconnect, maxAttempts: Number.MAX_SAFE_INTEGER },
+    }
+  }
   return { config: { ...config, url: proxy.url }, proxy }
 }
 
-async function createRedirectGuard(targetUrl) {
+async function requiresOAuth(url, fetchFn) {
+  try {
+    const response = await fetchFn(url, {
+      method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(5_000),
+    })
+    const challenge = response.headers.get('www-authenticate') ?? ''
+    await response.body?.cancel().catch(() => {})
+    return response.status === 401 && /^Bearer(?:\s|$)/i.test(challenge)
+  } catch {
+    return false
+  }
+}
+
+async function createRedirectGuard(targetUrl, { oauth, oauthBindHost = '127.0.0.1', onClose } = {}) {
   const token = randomBytes(16).toString('hex')
   const controllers = new Set()
   const server = createServer(async (request, response) => {
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
+    if (oauth && requestUrl.pathname === '/oauth/callback') {
+      try {
+        await oauth.complete(Object.fromEntries(requestUrl.searchParams))
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+        response.end(renderOAuthCallbackPage({
+          title: 'Authorization complete',
+          message: 'Return to DeepSeek Harness. You can close this page.',
+          autoClose: true,
+        }))
+      } catch (error) {
+        response.writeHead(400, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+        response.end(renderOAuthCallbackPage({ title: 'Authorization failed', message: errorMessage(error), error: true }))
+      }
+      return
+    }
     if (requestUrl.pathname !== `/${token}`) {
       response.writeHead(404).end()
       return
@@ -132,17 +187,20 @@ async function createRedirectGuard(targetUrl) {
       delete headers.connection
       delete headers['content-length']
       delete headers['transfer-encoding']
-      const upstream = await fetch(upstreamUrl, {
+      const body = ['GET', 'HEAD'].includes(request.method)
+        ? undefined
+        : oauth ? await readRequestBody(request) : request
+      const upstream = await (oauth?.fetch ?? fetch)(upstreamUrl, {
         method: request.method,
         headers,
-        body: ['GET', 'HEAD'].includes(request.method) ? undefined : request,
+        body,
         duplex: 'half',
         redirect: 'manual',
         signal: controller.signal,
       })
       if ([301, 302, 303, 307, 308].includes(upstream.status)) {
         response.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' })
-        response.end('Agent Plugins redirect with configured headers refused')
+        response.end('Agent Plugins redirect with configured credentials refused')
         return
       }
       const responseHeaders = {}
@@ -167,15 +225,34 @@ async function createRedirectGuard(targetUrl) {
       controllers.delete(controller)
     }
   })
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  const preferredPort = oauth ? preferredCallbackPort(oauth.preferredRedirectUrl) : 0
+  const bindHost = oauth ? oauthBindHost : '127.0.0.1'
+  if (preferredPort) {
+    try {
+      await listen(server, preferredPort, bindHost)
+    } catch {
+      await listen(server, 0, bindHost)
+    }
+  } else {
+    await listen(server, 0, bindHost)
+  }
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('unable to bind MCP redirect guard')
+  if (oauth) {
+    try {
+      await oauth.useRedirectUrl(`http://127.0.0.1:${address.port}/oauth/callback`)
+    } catch (error) {
+      server.close()
+      throw error
+    }
+  }
   let closed = false
   return {
     url: `http://127.0.0.1:${address.port}/${token}`,
     async close() {
       if (closed) return
       closed = true
+      await onClose?.()
       for (const controller of controllers) controller.abort()
       server.close()
       server.closeAllConnections()
@@ -183,4 +260,64 @@ async function createRedirectGuard(targetUrl) {
       server.unref()
     },
   }
+}
+
+function renderOAuthCallbackPage({ title, message, error = false, autoClose = false }) {
+  const style = `
+    :root{color-scheme:light;--background:#f5f6f7;--surface:#ffffff;--text:#0f1115;--secondary:#61666b;--border:#0000001a;--status:#22c55e}
+    @media(prefers-color-scheme:dark){:root{color-scheme:dark;--background:#151517;--surface:#2c2c2e;--text:#f9fafb;--secondary:#cfd3d6;--border:rgba(255,255,255,.12)}main{box-shadow:none}}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--background);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Helvetica,Arial,sans-serif}
+    main{display:flex;gap:12px;width:min(100%,420px);padding:24px;border:.5px solid var(--border);border-radius:20px;background:var(--surface);box-shadow:0 3px 8px #00000008,0 0 16px #00000005}
+    .dot{flex:none;width:8px;height:8px;margin-top:10px;border-radius:999px;background:var(--status)}
+    h1{margin:0 0 8px;font-size:20px;line-height:28px;font-weight:500}
+    p{margin:0;color:var(--secondary);font-size:13px;line-height:20px;overflow-wrap:anywhere}
+    .error{--status:#ec1313}
+    @media(prefers-color-scheme:dark){.error{--status:#f25a5a}}
+  `
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>${style}</style></head><body><main class="${error ? 'error' : 'success'}" role="${error ? 'alert' : 'status'}"><span class="dot" aria-hidden="true"></span><div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p></div></main>${autoClose ? '<script>window.close()</script>' : ''}</body></html>`
+}
+
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character])
+}
+
+function preferredCallbackPort(value) {
+  if (!value) return 0
+  try {
+    const url = new URL(value)
+    const port = Number(url.port)
+    return url.protocol === 'http:' && url.hostname === '127.0.0.1' && Number.isInteger(port) && port > 0 && port <= 65_535 ? port : 0
+  } catch {
+    return 0
+  }
+}
+
+function listen(server, port, host) {
+  return new Promise((resolve, reject) => {
+    const onError = (error) => {
+      server.off('listening', onListening)
+      reject(error)
+    }
+    const onListening = () => {
+      server.off('error', onError)
+      resolve()
+    }
+    server.once('error', onError)
+    server.once('listening', onListening)
+    server.listen(port, host)
+  })
+}
+
+async function readRequestBody(request) {
+  const chunks = []
+  let size = 0
+  for await (const chunk of request) {
+    size += chunk.byteLength
+    if (size > 16 * 1024 * 1024) throw new Error('OAuth MCP request body exceeds 16 MiB')
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks)
 }
