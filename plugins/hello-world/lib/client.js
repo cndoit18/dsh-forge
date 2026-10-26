@@ -9,7 +9,7 @@
  * The bundle must stay dependency-free: no build step runs for this package.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-forge-plugin-hello-world',
+  id: '@dshforge/hello-world',
   factory(require) {
     const React = require('react')
 
