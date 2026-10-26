@@ -51,7 +51,7 @@ Each direct child of `~/.agents/plugins/` is one Agent Plugin package. A package
     └── mcp.json
 ```
 
-- **Skills** — immediate `skills/<name>/SKILL.md` entries are validated against the Agent Skills contract and exposed through the existing DSH skill registry. Skill bodies are revalidated and read on demand.
+- **Skills** — immediate `skills/<name>/SKILL.md` entries are validated against the Agent Skills contract and exposed through the existing DSH skill registry. The `skills/` location and immediate skill directories may be symlinks whose resolved paths stay within the plugin root. Skill bodies are revalidated and read on demand. String-valued standard metadata and nested client-owned metadata are preserved as opaque values; this bundle does not execute or enforce client-specific fields such as `requires`.
 - **MCP** — the root `mcp.json` supports independent `stdio` and `streamable-http` server mounting through `dsh-mcp-client`. Legacy `sse` entries are reported as unsupported and skipped.
 
 The bundle validates `plugin.json` before loading any component. Fatal manifest errors reject that package; invalid Skills, MCP documents, and individual servers fail independently with diagnostics. Unknown manifest top-level fields and non-object `extensions` values are reported and ignored.

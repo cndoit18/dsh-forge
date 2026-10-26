@@ -163,9 +163,10 @@ export function parseSkillDocument(raw, expectedName, path) {
   if (Object.hasOwn(data, 'compatibility')) result.compatibility = optionalString(data, 'compatibility', 500, path)
   if (Object.hasOwn(data, 'allowed-tools')) result.allowedTools = optionalString(data, 'allowed-tools', undefined, path)
   if (Object.hasOwn(data, 'metadata')) {
-    if (!isPlainObject(data.metadata) || Object.values(data.metadata).some(value => typeof value !== 'string')) {
-      throw invalidAgentPlugin('skill metadata must map strings to strings', path)
+    if (!isPlainObject(data.metadata)) {
+      throw invalidAgentPlugin('skill metadata must be a map', path)
     }
+    // Preserve provider-owned extension data for the DSH skill registry; its semantics are not interpreted here.
     result.metadata = { ...data.metadata }
   }
   return result
