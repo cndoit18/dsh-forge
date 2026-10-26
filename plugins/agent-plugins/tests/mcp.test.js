@@ -124,7 +124,10 @@ test('mounting isolates config and startup failures without exposing config valu
     { name: 'good', type: 'stdio', command: 'node' },
     { name: 'remote', type: 'streamable-http', url: 'https://example.com/mcp' },
   ])]
-  const children = await mountAgentPluginMcpServers(ctx, packages, { dataDirectory })
+  const children = await mountAgentPluginMcpServers(ctx, packages, {
+    dataDirectory,
+    fetch: async () => new Response(null, { status: 200 }),
+  })
   assert.equal(calls.length, 2)
   assert.equal(children.length, 1)
   assert.equal(warnings.some(message => message.includes('bad')), true)

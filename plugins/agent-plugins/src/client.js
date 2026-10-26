@@ -16,6 +16,32 @@ window.__ModuleLoader__.load({
     } = require('@deepseek-ai/dsh-client-ui-primitives')
 
     const h = React.createElement
+    // Official mark from https://agent-plugins.org/icon.svg.
+    const agentPluginsLogoPaths = [
+      'M2.89502 12.7607V13.8984L3.56006 14.5381H14.4399L15.104 13.8994V12.7607H16.7417V14.5967L15.3364 15.9473L15.0981 16.1758H2.90088L2.66357 15.9473L1.50928 14.8389L1.2583 14.5967V12.7607H2.89502ZM15.0981 0L15.3364 0.228516L16.4897 1.33691L16.7417 1.57812V3.41406H15.104V2.27539L14.439 1.63672H3.56006L2.89502 2.27539V3.41406H1.2583V1.57812L2.66357 0.228516L2.90088 0H15.0981Z',
+      'M16.3628 8.12036C16.3628 7.24277 15.6515 6.53157 14.7739 6.53149C13.8963 6.53149 13.1851 7.24272 13.1851 8.12036C13.1851 8.99793 13.8963 9.70923 14.7739 9.70923V11.3469L14.6079 11.342C12.9581 11.2585 11.635 9.93612 11.5513 8.28638L11.5474 8.12036C11.5474 6.33846 12.992 4.8938 14.7739 4.8938L14.9399 4.89771C16.6446 4.98418 18.0005 6.39419 18.0005 8.12036L17.9956 8.28638C17.9091 9.991 16.5 11.3468 14.7739 11.3469V9.70923C15.6514 9.70915 16.3627 8.99788 16.3628 8.12036Z',
+      'M6.45283 8.12021C6.45283 9.90211 5.00831 11.3466 3.22641 11.3466C1.44451 11.3466 0 9.90211 0 8.12021C0 6.33831 1.44451 4.8938 3.22641 4.8938C5.00831 4.8938 6.45283 6.33831 6.45283 8.12021Z',
+      'M5.14258 8.12036C5.14258 7.06225 4.28466 6.20443 3.22656 6.20435C2.1684 6.20435 1.31055 7.0622 1.31055 8.12036C1.31063 9.17846 2.16845 10.0364 3.22656 10.0364V11.3469L3.06055 11.342C1.41077 11.2585 0.087592 9.93612 0.00390625 8.28638L0 8.12036C0 6.33846 1.44466 4.8938 3.22656 4.8938L3.39258 4.89771C5.09726 4.98418 6.45312 6.39419 6.45312 8.12036L6.44824 8.28638C6.36175 9.991 4.95266 11.3468 3.22656 11.3469V10.0364C4.28461 10.0363 5.1425 9.17841 5.14258 8.12036Z',
+      'M10.384 7.31519L10.384 8.95288L4.84595 8.95288L4.84595 7.31519L10.384 7.31519Z',
+    ]
+
+    function createAgentPluginsLogo() {
+      const logo = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      logo.setAttribute('class', 'ap-agent-plugins-logo')
+      logo.setAttribute('width', '16')
+      logo.setAttribute('height', '16')
+      logo.setAttribute('viewBox', '0 0 18 17')
+      logo.setAttribute('fill', 'none')
+      logo.setAttribute('aria-hidden', 'true')
+      for (const d of agentPluginsLogoPaths) {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+        path.setAttribute('d', d)
+        path.setAttribute('fill', 'currentColor')
+        logo.appendChild(path)
+      }
+      return logo
+    }
+
     const NS = 'agentPlugins'
     const en = {
       nav: 'Agent plugins', title: 'Agent plugins', intro: 'Inspect plugins and capabilities in ~/.agents/plugins/',
@@ -38,6 +64,8 @@ noSkills: 'This plugin provides no Skills.', noMcp: 'This plugin configures no M
       installGuide: 'Installation guide', installGuideTitle: 'Git repository address',
       installGuideDescription: 'Use HTTPS .git or SCP-style git@host:path, with optional #ref and &path:/subdirectory. Example: https://github.com/agentplugins/agent-plugins-example.git',
       fillExample: 'Fill example',
+      oauthTitle: 'OAuth authorization', oauthPending: 'OAuth authorization is required to connect.', oauthOpen: 'Open authorization page',
+      oauthAuthorizing: 'Preparing OAuth authorization…', oauthFailed: 'OAuth authorization failed.',
     }
     const zh = {
       nav: 'Agent 插件', title: 'Agent 插件', intro: '查看 ~/.agents/plugins/ 中的插件及其能力',
@@ -60,10 +88,14 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
       installGuide: '安装引导', installGuideTitle: '填入 Git 仓库地址',
       installGuideDescription: '支持 HTTPS .git 或 SCP-style git@host:path；可用 #ref 指定分支、标签或提交，用 &path:/子目录选择插件。示例：https://github.com/agentplugins/agent-plugins-example.git',
       fillExample: '填入示例',
+      oauthTitle: 'OAuth 授权', oauthPending: '此 MCP 服务需要完成 OAuth 授权后才能连接。', oauthOpen: '打开授权页面',
+      oauthAuthorizing: '正在准备 OAuth 授权…', oauthFailed: 'OAuth 授权失败。',
     }
     const css = `
       .dsh-forge-agent-plugins{container:agent-plugins/inline-size;display:flex;flex-direction:column;gap:12px;width:100%;max-width:760px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px}
       .dsh-forge-agent-plugins *{box-sizing:border-box}
+      .ap-agent-plugins-original-icon{display:none}
+      .ap-agent-plugins-logo{display:block;flex:none;width:16px;height:16px}
       .dsh-forge-agent-plugins button,.dsh-forge-agent-plugins input{font:inherit}
       .dsh-forge-agent-plugins button:focus-visible,.dsh-forge-agent-plugins input:focus-visible{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}
       .ap-heading{margin:0;font-size:18px;line-height:26px;font-weight:600}
@@ -148,11 +180,17 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
       .ap-component-path{color:var(--dsw-alias-label-tertiary);font-family:var(--ds-font-family-code);font-size:11px;line-height:17px;overflow-wrap:anywhere}
       .ap-tag{display:inline-flex;flex:none;align-items:center;border-radius:999px;padding:1px 7px;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);font-family:var(--ds-font-family-code);font-size:10px;line-height:16px}
       .ap-config{border-radius:var(--dsw-radius-sm);padding:8px 10px;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);font-family:var(--ds-font-family-code);font-size:12px;line-height:19px;overflow-wrap:anywhere;white-space:pre-wrap}
-      .ap-mcp-card{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-module-platform)}
+      .ap-mcp-card{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-bg-layer-1)}
       .ap-mcp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px;margin:0}
       .ap-mcp-field{min-width:0}
       .ap-mcp-field dt{margin-bottom:2px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:17px}
       .ap-mcp-field dd{margin:0;color:var(--dsw-alias-label-secondary);font-family:var(--ds-font-family-code);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+      .ap-oauth{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:2px}
+      .ap-oauth-content{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+      .ap-oauth-title{font-size:13px;line-height:20px;font-weight:500}
+      .ap-oauth-message{margin:0;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+      .ap-oauth-message.ap-oauth-error{color:var(--dsw-alias-state-error-primary)}
+      .ap-oauth-button{flex:none}
       .ap-tree,.ap-tree-level{margin:0;padding:0;list-style:none}
       .ap-tree{display:flex;flex-direction:column;gap:2px}
       .ap-tree-level{display:flex;flex-direction:column;gap:2px}
@@ -179,7 +217,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
       @container agent-plugins (max-width:520px){.ap-cards{grid-template-columns:minmax(0,1fr)}.ap-manifest-grid{grid-template-columns:minmax(0,1fr)}.ap-summary{grid-template-columns:1fr}}
     `
 
-    function AgentPluginsSection({ t, useCatalog, reload, openFile, listDirectory, install, close }) {
+    function AgentPluginsSection({ t, useCatalog, reload, openFile, listDirectory, install, oauthStatus, openAuthorization, close }) {
       const snapshot = useCatalog(snapshot => snapshot)
       const [selectedId, setSelectedId] = React.useState()
       const [tab, setTab] = React.useState('overview')
@@ -232,7 +270,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
           ? h(PluginDetail, {
               plugin: selected, t, tab, onTab: setTab,
               onBack: () => { setSelectedId(undefined); setTab('overview') },
-              onOpenFile: openPreview, listDirectory,
+              onOpenFile: openPreview, listDirectory, oauthStatus, openAuthorization,
             })
           : h(PluginList, {
               plugins, t,
@@ -313,7 +351,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
             (plugin.mcpError || plugin.status === 'invalid') ? h('span', { className: 'ap-warning-dot', title: plugin.mcpError ?? plugin.invalidReason }) : null)))
     }
 
-    function PluginDetail({ plugin, t, tab, onTab, onBack, onOpenFile, listDirectory }) {
+    function PluginDetail({ plugin, t, tab, onTab, onBack, onOpenFile, listDirectory, oauthStatus, openAuthorization }) {
       const manifest = plugin.manifest
       return h(React.Fragment, null,
         h('button', { type: 'button', className: 'ap-back', onClick: onBack },
@@ -333,7 +371,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
           h(Tab, { id: 'files', label: t('files'), tab, onTab })),
         tab === 'overview' ? h(ManifestOverview, { plugin, t })
           : tab === 'skills' ? h(SkillsView, { plugin, t })
-            : tab === 'mcp' ? h(McpView, { plugin, t })
+            : tab === 'mcp' ? h(McpView, { plugin, t, oauthStatus, openAuthorization })
               : h(FilesView, { plugin, t, onOpenFile, listDirectory }))
     }
 
@@ -374,7 +412,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
           h('p', { className: 'ap-component-description' }, skill.description))))
     }
 
-    function McpView({ plugin, t }) {
+    function McpView({ plugin, t, oauthStatus, openAuthorization }) {
       if (plugin.mcpServers.length === 0) return h('p', { className: 'ap-empty' }, t('noMcp'))
       return h('div', { className: 'ap-components' }, plugin.mcpServers.map(server =>
         h('section', { className: 'ap-mcp-card', key: server.name },
@@ -388,7 +426,48 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
               h(McpField, { label: 'cwd', value: server.cwd ?? '${PLUGIN_ROOT}' }))
               : h(React.Fragment, null,
                 h(McpField, { label: 'url', value: server.url }),
-                server.headerNames?.length ? h(McpField, { label: 'headers', value: server.headerNames.join(', ') }) : null)))))
+                server.headerNames?.length ? h(McpField, { label: 'headers', value: server.headerNames.join(', ') }) : null)),
+            server.type === 'streamable-http' && !server.headerNames?.length
+              ? h(OAuthStatus, { root: plugin.directoryName, server: server.name, t, oauthStatus, openAuthorization })
+              : null)))
+    }
+
+    function OAuthStatus({ root, server, t, oauthStatus, openAuthorization }) {
+      const [status, setStatus] = React.useState({ state: 'loading' })
+      React.useEffect(() => {
+        let stopped = false
+        let timer
+        let controller
+        const load = async () => {
+          controller = new AbortController()
+          try {
+            const result = await oauthStatus(root, server, controller.signal)
+            if (stopped) return
+            setStatus(result.ok ? result.value : { state: 'error', message: result.error.message })
+          } catch (error) {
+            if (!stopped) setStatus({ state: 'error', message: String(error) })
+          }
+          if (!stopped) timer = setTimeout(load, 2000)
+        }
+        void load()
+        return () => {
+          stopped = true
+          clearTimeout(timer)
+          controller?.abort()
+        }
+      }, [root, server, oauthStatus])
+      if (status.state === 'authorizing') return h('p', { className: 'ap-component-description' }, t('oauthAuthorizing'))
+      if (status.state === 'pending' || status.state === 'error') {
+        return h('div', { className: 'ap-oauth' },
+          h('div', { className: 'ap-oauth-content' },
+            h('strong', { className: 'ap-oauth-title' }, t('oauthTitle')),
+            h('p', { className: `ap-oauth-message${status.state === 'error' ? ' ap-oauth-error' : ''}`, role: status.state === 'error' ? 'alert' : undefined },
+              status.state === 'error' ? `${t('oauthFailed')} ${status.message ?? ''}` : t('oauthPending'))),
+          status.authorizationUrl
+            ? h('button', { type: 'button', className: 'ap-button ap-oauth-button', onClick: () => openAuthorization(status.authorizationUrl) }, t('oauthOpen'))
+            : null)
+      }
+      return null
     }
 
     function McpField({ label, value }) {
@@ -512,6 +591,52 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
         tag.textContent = css
         document.head.appendChild(tag)
       }
+      // Settings navigation has no icon slot. Mirror its ordered section ledger
+      // and keep this DOM enhancement scoped to the Agent Plugins entry.
+      ctx.effect(() => {
+        let marked
+        let observedModal
+        const restore = () => {
+          if (!marked) return
+          marked.original.classList.remove('ap-agent-plugins-original-icon')
+          marked.logo.remove()
+          marked = undefined
+        }
+        const updateIcon = () => {
+          const modal = document.querySelector('[data-shortcut-modal="settings"]')
+          if (modal !== observedModal) {
+            observedModal = modal
+            observer.disconnect()
+            observer.observe(document.body, { childList: true })
+            if (modal) observer.observe(modal, { childList: true, subtree: true })
+          }
+          if (!modal) {
+            restore()
+            return
+          }
+          const sections = ctx.slots.entries('settings.section')
+            .map(entry => ({ id: entry.options.id, order: entry.options.order ?? 0 }))
+            .sort((a, b) => a.order - b.order)
+          const index = sections.findIndex(section => section.id === 'agent-plugins')
+          const buttons = modal.querySelectorAll('nav button')
+          const target = index < 0 ? undefined : buttons[index]
+          if (marked?.button === target && marked.original.parentNode === target && marked.logo.parentNode === target) return
+          restore()
+          const original = target?.querySelector(':scope > svg')
+          if (!target || !original) return
+          const logo = createAgentPluginsLogo()
+          original.classList.add('ap-agent-plugins-original-icon')
+          original.after(logo)
+          marked = { button: target, original, logo }
+        }
+        const observer = new MutationObserver(updateIcon)
+        observer.observe(document.body, { childList: true })
+        updateIcon()
+        return () => {
+          observer.disconnect()
+          restore()
+        }
+      }, 'agent-plugins: settings navigation icon')
       const catalog = createSnapshotStore({ status: 'loading', value: undefined, error: undefined })
       let request = 0
       let started = false
@@ -529,6 +654,17 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
       ctx.effect(() => () => { request++ }, 'agent-plugins: discard stale catalog responses')
       const listDirectory = (root, path, signal) => ctx.connection.rpc.call('/agent-plugins', 'files', { root, path }, signal)
       const install = spec => ctx.connection.rpc.call('/agent-plugins', 'install', { spec })
+      const oauthStatus = (root, server, signal) => ctx.connection.rpc.call('/agent-plugins', 'oauth', { root, server }, signal)
+      const openAuthorization = (url) => {
+        const protocol = new URL(url).protocol
+        if (protocol !== 'http:' && protocol !== 'https:') return
+        const linkOpening = ctx.get('configForms')?.get('ui-chat')?.getSnapshot().value?.linkOpening
+        if (linkOpening !== 'new-tab' && ctx.get('sidebarRightTabs')?.get('browser') !== undefined) {
+          ctx.sidebarRight.openTab('browser', { params: { url } })
+        } else {
+          window.open(url, '_blank', 'noopener,noreferrer')
+        }
+      }
       const openFile = (path) => {
         const sessionId = ctx.sidebarRight.mounted.getSnapshot()
         if (sessionId === undefined) return { ok: false, message: t('previewNoSession') }
@@ -550,7 +686,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
             started = true
             void load()
           }
-          return { hooks: { catalog }, reload: load, openFile, listDirectory, install }
+          return { hooks: { catalog }, reload: load, openFile, listDirectory, install, oauthStatus, openAuthorization }
         },
       }, AgentPluginsSection))
     }

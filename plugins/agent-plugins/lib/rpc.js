@@ -4,8 +4,8 @@ import { join } from 'node:path'
 import { resolveExistingInside } from './paths.js'
 import { errorMessage } from './validation.js'
 
-/** Build the catalog-only Connection RPC handler without exposing config values. */
-export function createAgentPluginsRpcHandler(catalog, { install } = {}) {
+/** Build the owner-only Connection RPC handler without exposing static config values. */
+export function createAgentPluginsRpcHandler(catalog, { install, oauthSessions } = {}) {
   const readCatalog = () => typeof catalog === 'function' ? catalog() : catalog
   return async (endpoint, payload, signal, peer) => {
     if (peer.principal.kind !== 'owner') {
@@ -14,6 +14,7 @@ export function createAgentPluginsRpcHandler(catalog, { install } = {}) {
     if (signal.aborted) return failure('agent-plugins/cancelled', 'Agent Plugins catalog request was cancelled')
     if (endpoint === 'catalog') return { ok: true, value: projectCatalog(readCatalog()) }
     if (endpoint === 'files') return listPluginDirectory(readCatalog(), payload)
+    if (endpoint === 'oauth') return oauthStatus(readCatalog(), oauthSessions, payload)
     if (endpoint === 'install' && install !== undefined) {
       if (typeof payload?.spec !== 'string') return failure('agent-plugins/invalid-request', 'install requires a Git spec')
       try {
@@ -26,6 +27,17 @@ export function createAgentPluginsRpcHandler(catalog, { install } = {}) {
     }
     return failure('agent-plugins/not-found', `Unknown Agent Plugins endpoint ${JSON.stringify(endpoint)}`)
   }
+}
+
+function oauthStatus(catalog, oauthSessions, payload) {
+  if (typeof payload?.root !== 'string' || typeof payload.server !== 'string') {
+    return failure('agent-plugins/invalid-request', 'oauth requires root and server')
+  }
+  const plugin = catalog.plugins.find(entry => entry.directoryName === payload.root)
+  const server = plugin?.mcpServers.find(entry => entry.name === payload.server)
+  if (!plugin || plugin.status !== 'ready' || !server) return failure('agent-plugins/not-found', 'MCP server was not found')
+  const status = oauthSessions?.get(`${payload.root}/${payload.server}`)?.status() ?? { state: 'unavailable' }
+  return { ok: true, value: status }
 }
 
 async function listPluginDirectory(catalog, payload) {
@@ -82,7 +94,7 @@ export function registerAgentPluginsRpc(ctx, catalog, options) {
         return
       }
       const endpoint = new URL(request.url, 'http://localhost').pathname.slice('/agent-plugins/'.length)
-      if (!['catalog', 'files', 'install'].includes(endpoint)) {
+      if (!['catalog', 'files', 'install', 'oauth'].includes(endpoint)) {
         response.writeHead(404).end('not found')
         return
       }

@@ -18,6 +18,7 @@ export async function apply(ctx) {
     return createAgentSkillProvider({ pluginsDirectory })
   }), 'agent-plugins: skills provider')
   const dataDirectory = join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'agent-plugins', 'data')
+  const oauthSessions = new Map()
   let catalog = await discoverAgentPlugins({ pluginsDirectory })
   const install = async (spec, signal) => {
     const installed = await installAgentPlugin({ pluginsDirectory, spec, signal })
@@ -25,7 +26,7 @@ export async function apply(ctx) {
     invalidateSkills()
     ctx.emit('plugin-manager/changed', { reason: 'install' })
     const plugin = catalog.plugins.find(entry => entry.directoryName === installed.name && entry.status === 'ready')
-    if (plugin !== undefined) await mountAgentPluginMcpServers(ctx, [plugin], { dataDirectory })
+    if (plugin !== undefined) await mountAgentPluginMcpServers(ctx, [plugin], { dataDirectory, oauthSessions })
     return installed
   }
   let rpcRegistered = false
@@ -35,11 +36,11 @@ export async function apply(ctx) {
   const register = () => {
     if (rpcRegistered || ctx.get('webServer') === undefined) return
     rpcRegistered = true
-    ctx.effect(() => registerAgentPluginsRpc(ctx, () => catalog, { install }), 'agent-plugins: catalog route')
+    ctx.effect(() => registerAgentPluginsRpc(ctx, () => catalog, { install, oauthSessions }), 'agent-plugins: catalog route')
   }
   register()
   ctx.on('internal/service', (name) => {
     if (name === 'webServer') register()
   })
-  await mountAgentPluginMcpServers(ctx, catalog.plugins, { dataDirectory })
+  await mountAgentPluginMcpServers(ctx, catalog.plugins, { dataDirectory, oauthSessions })
 }
