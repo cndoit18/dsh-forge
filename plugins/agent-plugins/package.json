@@ -1,6 +1,6 @@
 {
   "name": "@dshforge/agent-plugins",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Agent Plugins v1 Skills and MCP support for DeepSeek Harness Web.",
   "repository": {

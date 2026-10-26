@@ -111,7 +111,7 @@ test('skill validation failures stay isolated to the offending skill', async (t)
   await write(home, 'alpha/plugin.json', manifest('alpha'))
   await write(home, 'alpha/skills/good/SKILL.md', skill('good'))
   await write(home, 'alpha/skills/mismatch/SKILL.md', skill('other-name'))
-  await write(home, 'alpha/skills/metadata/SKILL.md', skill('metadata', 'A valid description.', 'metadata:\n  version: 1\n'))
+  await write(home, 'alpha/skills/metadata/SKILL.md', skill('metadata', 'A valid description.', 'metadata: [not-a-map]\n'))
   await write(home, 'alpha/skills/missing/SKILL.md', 'not frontmatter')
 
   const catalog = await discoverAgentPlugins({ pluginsDirectory: home })
@@ -129,6 +129,8 @@ test('Agent Skills optional fields retain their validated values', async (t) => 
     'metadata:',
     '  author: example',
     '  version: "1.0"',
+    '  requires:',
+    '    bins: ["lark-cli"]',
     'allowed-tools: Bash(git:*) Read',
   ].join('\n') + '\n'))
 
@@ -136,7 +138,7 @@ test('Agent Skills optional fields retain their validated values', async (t) => 
   const [entry] = plugin(catalog, 'alpha').skills
   assert.equal(entry.license, 'Apache-2.0')
   assert.equal(entry.compatibility, 'Requires Node.js')
-  assert.deepEqual(entry.metadata, { author: 'example', version: '1.0' })
+  assert.deepEqual(entry.metadata, { author: 'example', version: '1.0', requires: { bins: ['lark-cli'] } })
   assert.equal(entry.allowedTools, 'Bash(git:*) Read')
 })
 

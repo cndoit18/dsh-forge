@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -74,4 +74,36 @@ test('real SkillRegistry resolves duplicate names by sorted package order and di
 
   dispose()
   assert.deepEqual(await ctx.skills.list(), [])
+})
+
+test('loads a skill behind a contained symlink with nested client metadata', async (t) => {
+  const root = await fixture(t)
+  await write(root, 'alpha/plugin.json', JSON.stringify({ $schema: SCHEMA, name: 'alpha' }))
+  await write(root, 'alpha/cli/skills/verify/SKILL.md', [
+    '---',
+    'name: verify',
+    'description: Verify linked skills.',
+    'metadata:',
+    '  owner: example',
+    '  requires:',
+    '    bins: ["lark-cli"]',
+    '    skills: ["lark-shared"]',
+    '---',
+    '',
+    'Linked instructions.',
+    '',
+  ].join('\n'))
+  await symlink('cli/skills', join(root, 'alpha', 'skills'), 'dir')
+  const ctx = new Context()
+  t.after(() => ctx.fiber.dispose())
+  await ctx.plugin(SkillRegistry)
+  ctx.skills.registerProvider(() => createAgentSkillProvider({ pluginsDirectory: root }))
+
+  assert.deepEqual((await ctx.skills.list()).map(skill => skill.name), ['verify'])
+  const skill = await ctx.skills.get('verify')
+  assert.equal(skill.content, 'Linked instructions.')
+  assert.deepEqual(skill.metadata, {
+    owner: 'example',
+    requires: { bins: ['lark-cli'], skills: ['lark-shared'] },
+  })
 })
