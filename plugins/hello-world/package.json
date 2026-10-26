@@ -1,6 +1,6 @@
 {
   "name": "@dshforge/hello-world",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "description": "Hello-world client plugin for dsh-forge: a quiet status bar in the shell.bottom slot, styled with the dsh-forge DESIGN.md tokens.",
   "repository": {
@@ -24,5 +24,6 @@
         "@deepseek-ai/dsh-client-ui-renderer"
       ]
     }
-  }
+  },
+  "license": "Apache-2.0"
 }
