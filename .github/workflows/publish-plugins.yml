@@ -1,0 +1,49 @@
+name: Publish plugins
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/*/package.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-plugins
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Dagger CLI
+        run: |
+          curl -fsSL https://dl.dagger.io/dagger/install.sh | \
+            BIN_DIR=/usr/local/bin DAGGER_VERSION="$(jq -r '.engineVersion' dagger.json)" sh
+          dagger version
+
+      - name: Publish changed plugin packages
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PUSH_BASE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          packages=()
+          while IFS= read -r manifest; do
+            packages+=(--packages "./$(dirname "$manifest")")
+          done < <(git diff --name-only --diff-filter=AM "$PUSH_BASE" "$GITHUB_SHA" -- 'plugins/*/package.json')
+
+          if ((${#packages[@]} == 0)); then
+            echo "No plugin package versions changed."
+            exit 0
+          fi
+
+          dagger --progress=plain call npm publish \
+            "${packages[@]}" \
+            --token env:NPM_TOKEN
