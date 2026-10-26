@@ -101,6 +101,43 @@ test('installs a repository root without copying Git metadata', async (t) => {
   assert.equal(JSON.parse(await readFile(join(result.root, 'plugin.json'), 'utf8')).name, 'root-demo')
 })
 
+test('initializes nested submodules inside the selected plugin without copying Git metadata', async (t) => {
+  const { temporary, repository } = await createRepository(t)
+  const nested = join(temporary, 'nested')
+  const child = join(temporary, 'child')
+  for (const [path, filename] of [[nested, 'nested.txt'], [child, 'child.txt']]) {
+    await mkdir(path)
+    await writeFile(join(path, filename), `${filename}\n`)
+    await git(path, 'init', '-b', 'main')
+    await git(path, 'add', '.')
+    await git(path, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'initial')
+  }
+  await git(child, '-c', 'protocol.file.allow=always', 'submodule', 'add', `file://${nested}`, 'nested')
+  await git(child, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'add nested')
+  await git(repository, '-c', 'protocol.file.allow=always', 'submodule', 'add', `file://${child}`, 'plugins/demo/vendor/child')
+  await git(repository, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'add child')
+
+  // Git blocks local submodule transports by default; allow them only in this test process.
+  const gitConfig = join(temporary, 'gitconfig')
+  await writeFile(gitConfig, '[protocol "file"]\n\tallow = always\n')
+  const previousGitConfig = process.env.GIT_CONFIG_GLOBAL
+  process.env.GIT_CONFIG_GLOBAL = gitConfig
+  t.after(() => {
+    if (previousGitConfig === undefined) delete process.env.GIT_CONFIG_GLOBAL
+    else process.env.GIT_CONFIG_GLOBAL = previousGitConfig
+  })
+
+  const result = await installAgentPlugin({
+    pluginsDirectory: join(temporary, 'home', 'plugins'),
+    spec: `file://${repository}&path:/plugins/demo`,
+    signal: new AbortController().signal,
+  })
+  assert.equal(await readFile(join(result.root, 'vendor', 'child', 'child.txt'), 'utf8'), 'child.txt\n')
+  assert.equal(await readFile(join(result.root, 'vendor', 'child', 'nested', 'nested.txt'), 'utf8'), 'nested.txt\n')
+  await assert.rejects(stat(join(result.root, 'vendor', 'child', '.git')), { code: 'ENOENT' })
+  await assert.rejects(stat(join(result.root, 'vendor', 'child', 'nested', '.git')), { code: 'ENOENT' })
+})
+
 test('install RPC is owner-only and reads the refreshed catalog after installation', async () => {
   let catalog = { plugins: [], diagnostics: [] }
   const installed = { name: 'demo', root: '/home/user/.agents/plugins/demo', manifest: { name: 'demo' } }

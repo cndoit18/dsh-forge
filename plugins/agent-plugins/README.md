@@ -23,7 +23,7 @@ git@github.com:org/repo.git&path:/plugins/demo
 git+ssh://git@github.com/org/repo.git#<commit-sha>&path:/plugins/demo
 ```
 
-`#ref` is optional and names a branch, tag, or commit. `&path:/subdirectory` selects a package inside a monorepo. The installer uses Git directly rather than pnpm because Agent Plugins requires only `plugin.json`, not `package.json`. It performs a shallow fetch, uses sparse checkout for a subdirectory, rejects path traversal and existing destinations, and does not copy root `.git` metadata or run package install scripts. An explicit install refreshes the catalog, registers Skills, and mounts the new MCP servers. Installation executes trusted Git credentials and transport configuration but no package code; later stdio MCP execution remains a separate trust decision.
+`#ref` is optional and names a branch, tag, or commit. `&path:/subdirectory` selects a package inside a monorepo. The installer uses Git directly rather than pnpm because Agent Plugins requires only `plugin.json`, not `package.json`. It performs a shallow fetch, uses sparse checkout for a subdirectory, recursively initializes submodules within the selected package, rejects path traversal and existing destinations, and does not copy `.git` metadata or run package install scripts. An explicit install refreshes the catalog, registers Skills, and mounts the new MCP servers. Installation executes trusted Git credentials and transport configuration but no package code; later stdio MCP execution remains a separate trust decision.
 
 ## Runtime behavior
 
