@@ -1,0 +1,25 @@
+default_install_hook_types = ["post-checkout", "pre-commit"]
+
+[[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "init-submodules",
+    name = "Initialize submodules",
+    language = "system",
+    entry = "git submodule update --init --recursive",
+    stages = ["post-checkout"],
+    always_run = true,
+    pass_filenames = false,
+  },
+  {
+    id = "bump-plugin-versions",
+    name = "Bump plugin versions on changes",
+    language = "python",
+    entry = "python scripts/bump_plugin_versions.py",
+    additional_dependencies = ["semantic-version"],
+    stages = ["pre-commit"],
+    files = "^plugins/",
+    pass_filenames = false,
+  },
+]
