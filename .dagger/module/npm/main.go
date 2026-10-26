@@ -20,19 +20,27 @@ type Npm struct{}
 // ships as-is. Scoped names publish with --access public, and npm itself
 // refuses private manifests. Pass dryRun to run every step except the
 // upload. Pass stage to upload as a stage instead: the version waits for
-// a maintainer's 2FA approval and never goes live directly, which is the
-// only publish a stage-only token can perform.
+// a maintainer's 2FA approval and never goes live directly. Authentication
+// uses GitHub Actions OIDC when oidcRequestToken is set; otherwise it uses
+// token.
 func (m *Npm) Publish(ctx context.Context,
 	// Package directories to publish; repeat the flag per package.
 	packages []*dagger.Directory,
-	// npm access token for registry.npmjs.org.
+	// npm access token for registry.npmjs.org, used without GitHub OIDC.
+	// +optional
 	token *dagger.Secret,
+	// GitHub Actions OIDC request URL for trusted publishing.
+	// +optional
+	oidcRequestURL string,
+	// GitHub Actions OIDC request token for trusted publishing.
+	// +optional
+	oidcRequestToken *dagger.Secret,
 	// Run the build and all publish validations without uploading.
 	// +optional
 	// +default=false
 	dryRun bool,
 	// Upload as a stage for maintainer approval instead of publishing
-	// directly. Requires a stage-capable (stage-only) token.
+	// directly. Requires stage publishing permission.
 	// +optional
 	// +default=false
 	stage bool,
@@ -42,7 +50,7 @@ func (m *Npm) Publish(ctx context.Context,
 		if pkg == nil {
 			continue
 		}
-		containers = append(containers, publishContainer(pkg, token, dryRun, stage))
+		containers = append(containers, publishContainer(pkg, token, oidcRequestURL, oidcRequestToken, dryRun, stage))
 	}
 
 	outputs := make([]string, len(containers))
@@ -72,14 +80,25 @@ func (m *Npm) Publish(ctx context.Context,
 // publishContainer installs, builds, and publishes one package in its own
 // container; the pipeline's stdout is npm's own publish line (name@version),
 // so build steps write to stderr to keep it clean.
-func publishContainer(pkg *dagger.Directory, token *dagger.Secret, dryRun, stage bool) *dagger.Container {
-	return dag.Container().
+func publishContainer(pkg *dagger.Directory, token *dagger.Secret, oidcRequestURL string, oidcRequestToken *dagger.Secret, dryRun, stage bool) *dagger.Container {
+	container := dag.Container().
 		From("node:24-bookworm").
 		WithMountedCache("/root/.local/share/pnpm/store", dag.CacheVolume("dsh-pnpm-store")).
 		WithMountedCache("/root/.cache/node/corepack", dag.CacheVolume("dsh-corepack")).
 		WithMountedDirectory("/pkg", pkg).
-		WithWorkdir("/pkg").
-		WithSecretVariable("NPM_TOKEN", token).
+		WithWorkdir("/pkg")
+	if token != nil {
+		container = container.WithSecretVariable("NPM_TOKEN", token)
+	}
+	if oidcRequestToken != nil {
+		// Provenance needs GitHub workflow metadata that is not forwarded.
+		container = container.
+			WithEnvVariable("GITHUB_ACTIONS", "true").
+			WithEnvVariable("ACTIONS_ID_TOKEN_REQUEST_URL", oidcRequestURL).
+			WithSecretVariable("ACTIONS_ID_TOKEN_REQUEST_TOKEN", oidcRequestToken).
+			WithEnvVariable("NPM_CONFIG_PROVENANCE", "false")
+	}
+	return container.
 		WithEnvVariable("DRY_RUN", strconv.FormatBool(dryRun)).
 		WithEnvVariable("STAGE", strconv.FormatBool(stage)).
 		WithExec([]string{"sh", "-c", publishScript})
@@ -92,13 +111,18 @@ if node -e "const s = require('./package.json').scripts; process.exit(s && s.bui
   pnpm install
   pnpm run build
 fi >&2
-echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > /root/.npmrc
+if [ -n "${NPM_TOKEN:-}" ]; then
+  echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > /root/.npmrc
+fi
 
 args="publish"
 if [ "$STAGE" = "true" ]; then
   # node:24 ships npm 11, which predates the npm stage command (npm 12).
   npm install -g npm@12 >&2
   args="stage publish"
+elif [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+  # Trusted publishing requires npm 11.5.1 or later.
+  npm install -g npm@11 >&2
 fi
 # Scoped names default to restricted access on first publish. Like the
 # build check above, use process.exit so the predicate prints nothing.
