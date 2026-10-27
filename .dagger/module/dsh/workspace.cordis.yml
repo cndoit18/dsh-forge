@@ -1,3 +1,12 @@
 - id: workspace-controller
   config:
     documentsDirectory: /workspace/debug-documents
+- id: sandbox
+  config:
+    runnerCommand: ["node", "/opt/dsh-sandbox/landlock-bwrap.mjs"]
+    runnerFailureSignatures: ["landlock-run:"]
+- id: sandbox-policy
+  config:
+    mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+    workspaceRoot: !!js process.cwd()
+    additionalWritableRoots: ["/workspace/e2e-worktree/.git"]

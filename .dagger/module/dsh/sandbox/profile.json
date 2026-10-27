@@ -1,0 +1,3 @@
+{
+  "launcher": "/opt/dsh-sandbox-deps/node_modules/@deepseek-ai/node-addon-system-linux-arm64/bin/landlock-run"
+}

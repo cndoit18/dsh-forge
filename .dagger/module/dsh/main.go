@@ -41,6 +41,7 @@ func (m *Dsh) Web(ctx context.Context,
 		WithExposedPort(3080).
 		WithDefaultArgs([]string{"sh", "-c", `
 exec pnpm dsh web \
+  --patch /tmp/dsh-worktree.cordis.yml \
   --patch /tmp/dsh-workspace.cordis.yml \
   --host "$(hostname -I | awk '{print $1}')" \
   --port 3080 \
@@ -63,7 +64,7 @@ const dshProfilesDir = "/root/.dsh/profiles"
 // parallel to the DSH build; the main container imports the resulting
 // profile files instead of running the installs itself.
 func (m *Dsh) webContainer(ctx context.Context, source *dagger.Directory, plugins []*dagger.Directory) (*dagger.Container, error) {
-	built, err := m.buildPlugins(ctx, plugins)
+	built, err := m.buildPlugins(ctx, plugins, source)
 	if err != nil {
 		return nil, err
 	}
@@ -74,13 +75,22 @@ func (m *Dsh) webContainer(ctx context.Context, source *dagger.Directory, plugin
 		WithMountedCache("/root/.local/share/pnpm/store", dag.CacheVolume("dsh-pnpm-store")).
 		WithMountedCache("/root/.cache/node/corepack", dag.CacheVolume("dsh-corepack")).
 		WithDirectory("/workspace", source).
+		WithDirectory("/opt/dsh-sandbox", dag.CurrentModule().Source().Directory("sandbox")).
 		WithWorkdir("/workspace/third_party/deepseek-harness").
 		WithExec([]string{"corepack", "enable"}).
+		WithExec([]string{"sh", "-c", "mkdir -p /opt/dsh-sandbox-deps && cd /opt/dsh-sandbox-deps && npm init -y >/dev/null 2>&1 && npm install --ignore-scripts --no-audit --no-fund @deepseek-ai/node-addon-system@0.1.2"}).
+		WithEnvVariable("NODE_PATH", "/opt/dsh-sandbox-deps/node_modules").
 		WithEnvVariable("CI", "true").
 		WithExec([]string{"pnpm", "install", "--frozen-lockfile"}).
 		WithoutEnvVariable("CI").
 		WithEnvVariable("DSH_CLIENT_COMMIT_HASH", "0000000000000000000000000000000000000000")
 	container := base.WithExec([]string{"pnpm", "run", "build"})
+
+	if len(built) > 0 {
+		// Install the official service as a dependency, not a bundle.
+		installer := base.WithExec([]string{"pnpm", "dsh", "plugin", "--profile", "web", "add", "link:./packages/experimental/worktree"})
+		container = container.WithDirectory(dshProfilesDir, installer.Directory(dshProfilesDir))
+	}
 
 	if len(built) > 0 {
 		// One linked bundle per plugin: the bundle patch inside each package
@@ -95,12 +105,16 @@ func (m *Dsh) webContainer(ctx context.Context, source *dagger.Directory, plugin
 			container = container.WithDirectory(pluginsRoot+"/"+plugin.dirName, plugin.artifacts)
 		}
 		installer = installer.WithExec([]string{"sh", "-c", strings.Join(installs, " && ")})
+		installer = installer.WithExec([]string{"node", "--import", "tsx/esm", "/opt/dsh-sandbox/enable-official.mjs"})
 		// The main container consumes the installed profile; it does not run
 		// the installs.
 		container = container.WithDirectory(dshProfilesDir, installer.Directory(dshProfilesDir))
 	}
 
 	return container.
+		WithMountedFile("/tmp/dsh-worktree.cordis.yml", dag.CurrentModule().Source().File("worktree.cordis.yml")).
+		WithDirectory("third_party/deepseek-harness/packages/experimental/worktree", source.Directory("third_party/deepseek-harness/packages/experimental/worktree")).
+		WithDirectory("/opt/dsh-sandbox", dag.CurrentModule().Source().Directory("sandbox")).
 		WithMountedFile("/tmp/dsh-workspace.cordis.yml", dag.CurrentModule().Source().File("workspace.cordis.yml")), nil
 }
 
@@ -116,13 +130,13 @@ type builtPlugin struct {
 // parallel, and drops duplicate package names — the first occurrence of a
 // name wins. Each plugin's name is the stdout of its build container, so name
 // reads and artifact directories share one pipeline per plugin.
-func (m *Dsh) buildPlugins(ctx context.Context, plugins []*dagger.Directory) ([]builtPlugin, error) {
+func (m *Dsh) buildPlugins(ctx context.Context, plugins []*dagger.Directory, source *dagger.Directory) ([]builtPlugin, error) {
 	containers := []*dagger.Container{}
 	for _, plugin := range plugins {
 		if plugin == nil {
 			continue
 		}
-		containers = append(containers, m.buildPluginContainer(plugin))
+		containers = append(containers, m.buildPluginContainer(plugin, source))
 	}
 
 	names := make([]string, len(containers))
@@ -173,12 +187,13 @@ func sanitizePackageDir(name string) string {
 // Build output goes to stderr so stdout carries only the name; set -e fails
 // the container on a broken build instead of falling through to the name
 // print (the if condition stays exempt).
-func (m *Dsh) buildPluginContainer(plugin *dagger.Directory) *dagger.Container {
+func (m *Dsh) buildPluginContainer(plugin *dagger.Directory, source *dagger.Directory) *dagger.Container {
 	return dag.Container().
 		From("node:24-bookworm").
 		WithMountedCache("/root/.local/share/pnpm/store", dag.CacheVolume("dsh-pnpm-store")).
 		WithMountedCache("/root/.cache/node/corepack", dag.CacheVolume("dsh-corepack")).
 		WithMountedDirectory("/plugin", plugin).
+		WithDirectory("/third_party/deepseek-harness", source.Directory("third_party/deepseek-harness")).
 		WithWorkdir("/plugin").
 		WithExec([]string{"sh", "-c", `
 set -e
