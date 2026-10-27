@@ -1,0 +1,3 @@
+- insert:
+    - id: worktree-e2e-mock-model
+      name: "@dshforge/worktree-e2e-mock-model"
