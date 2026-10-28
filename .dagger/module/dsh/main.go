@@ -41,7 +41,6 @@ func (m *Dsh) Web(ctx context.Context,
 		WithExposedPort(3080).
 		WithDefaultArgs([]string{"sh", "-c", `
 exec pnpm dsh web \
-  --patch /tmp/dsh-worktree.cordis.yml \
   --patch /tmp/dsh-workspace.cordis.yml \
   --host "$(hostname -I | awk '{print $1}')" \
   --port 3080 \
@@ -112,7 +111,6 @@ func (m *Dsh) webContainer(ctx context.Context, source *dagger.Directory, plugin
 	}
 
 	return container.
-		WithMountedFile("/tmp/dsh-worktree.cordis.yml", dag.CurrentModule().Source().File("worktree.cordis.yml")).
 		WithDirectory("third_party/deepseek-harness/packages/experimental/worktree", source.Directory("third_party/deepseek-harness/packages/experimental/worktree")).
 		WithDirectory("/opt/dsh-sandbox", dag.CurrentModule().Source().Directory("sandbox")).
 		WithMountedFile("/tmp/dsh-workspace.cordis.yml", dag.CurrentModule().Source().File("workspace.cordis.yml")), nil
