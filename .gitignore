@@ -1,3 +1,5 @@
 .superdesign/tmp/
 node_modules/
 plugins/agent-plugins/lib/client.js
+plugins/worktrees/.test-dist/
+plugins/worktrees/coverage/

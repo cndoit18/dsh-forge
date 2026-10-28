@@ -30,7 +30,7 @@ npm test
 npm run build
 ```
 
-The tests use the vendored upstream Git fixtures and require `third_party/deepseek-harness/node_modules` to be installed. The build copies the Host files and emits the direct browser module with inline semantic-token CSS.
+The tests use the vendored upstream Git fixtures and require `third_party/deepseek-harness/node_modules` to be installed. The build copies the Host files and bundles the modular Client as a lazy-CJS browser module with semantic-token CSS. Components receive narrow action callbacks; the browser adapter owns RPC, and registrations and stylesheet follow plugin disposal.
 
 ## Model Experience
 

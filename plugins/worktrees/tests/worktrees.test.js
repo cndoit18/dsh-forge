@@ -7,7 +7,8 @@ import { Context } from '@deepseek-ai/cordis'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import { agentEvents } from '../../../third_party/deepseek-harness/packages/core/agent/src/index.ts'
 import { WorktreesHost } from '../src/index.js'
-import { recordWorktree } from '../src/manager.js'
+import { WorktreeStore } from '../src/store.js'
+
 import { harness, repository, testAgent } from '../../../third_party/deepseek-harness/packages/experimental/worktree/tests/harness.ts'
 
 const owner = { principal: { kind: 'owner' } }
@@ -31,9 +32,8 @@ test('native pre-step creates through upstream runtime, reuses records, and dela
     fork: async () => ({ sessionId: 'forked-session' }),
   }
   ctx.workspaceRegistry = { pinnedSessionIds: [] }
-  process.env.DSH_HOME = dataDirectory
   try {
-    const host = new WorktreesHost(ctx)
+    const host = new WorktreesHost(ctx, new WorktreeStore(dataDirectory))
     await host.ready
     await host.select({ sessionId: agent.id, pending: true })
     assert.equal((await host.inspect({ sessionId: agent.id })).pendingSelection, true)
@@ -80,6 +80,19 @@ test('native pre-step creates through upstream runtime, reuses records, and dela
   }
 })
 
+test('non-owner principals cannot read or mutate managed worktrees', async () => {
+  const dataDirectory = await mkdtemp(join(tmpdir(), 'worktrees-host-'))
+  const ctx = new Context()
+  ctx.invocation = { peer: { principal: { kind: 'guest' } } }
+  const host = new WorktreesHost(ctx, new WorktreeStore(dataDirectory))
+  await host.ready
+  for (const call of [() => host.inspect({ sessionId: 'session' }), () => host.select({ sessionId: 'session', pending: true }), () => host.settingsRead(), () => host.settingsWrite({ keepCount: 1 }), () => host.list({}), () => host.cleanup(), () => host.remove({ path: '/tmp/missing' }), () => host.fork({ sessionId: 'session' })]) {
+    await assert.rejects(call, error => error.code === 'worktrees/forbidden')
+  }
+  await host.ctx.fiber.dispose()
+  await rm(dataDirectory, { recursive: true, force: true })
+})
+
 test('deletion writes a recovery snapshot before removing a managed worktree', async () => {
   const root = await repository()
   const dataDirectory = await mkdtemp(join(tmpdir(), 'worktrees-host-'))
@@ -91,16 +104,15 @@ test('deletion writes a recovery snapshot before removing a managed worktree', a
   ctx.invocation = { peer: owner, signal: undefined }
   ctx.sessionController = { resolveAgent: async () => ({ agent }), fork: async () => ({ sessionId: 'forked-session' }) }
   ctx.workspaceRegistry = { pinnedSessionIds: [] }
-  process.env.DSH_HOME = dataDirectory
   try {
-    const host = new WorktreesHost(ctx)
+    const host = new WorktreesHost(ctx, new WorktreeStore(dataDirectory))
     await host.ready
     const prepared = await host.prepare({ sessionId: agent.id })
     const worktreePath = prepared.created.path
     assert.equal(typeof worktreePath, 'string')
     await writeFile(join(worktreePath, 'untracked.txt'), 'recovery')
     const [record] = await host.list({})
-    await recordWorktree(host.dataDirectory, { ...record, sessionIds: [] })
+    await host.store.record({ ...record, sessionIds: [] })
     await assert.rejects(host.remove({ path: worktreePath, confirmed: true }), error => {
       assert.equal(error.code, 'worktrees/protected')
       return true

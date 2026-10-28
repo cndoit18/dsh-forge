@@ -8,6 +8,10 @@ export default {
   root: resolve(import.meta.dirname, '../../../third_party/deepseek-harness'),
   test: {
     ...test,
-    include: [resolve(import.meta.dirname, 'worktrees.test.js')],
+    setupFiles: [],
+    exclude: ['**/node_modules/**', '**/.test-dist/**', '**/test-support/**'],
+    fileParallelism: false,
+    coverage: { ...test.coverage, allowExternal: true, include: ['**/plugins/worktrees/src/**/*.js'] },
+    include: [resolve(import.meta.dirname, '**/*.test.js')],
   },
 }

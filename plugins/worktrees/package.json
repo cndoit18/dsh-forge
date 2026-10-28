@@ -20,7 +20,8 @@
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "../../third_party/deepseek-harness/node_modules/.bin/vitest run --config tests/vitest.config.mjs"
+    "test": "vitest run --config tests/vitest.config.mjs && node tests/build-client.mjs && node --test .test-dist/client.test.mjs tests/module.test.mjs",
+    "test:coverage": "vitest run --config tests/vitest.config.mjs --coverage.enabled --coverage.provider=v8 --coverage.reporter=lcov --coverage.reportsDirectory=./coverage --coverage.thresholds.100=false"
   },
   "engines": {
     "dsh": ">=0.2.1-rc.3 <0.3.0",
@@ -37,7 +38,6 @@
         "@deepseek-ai/dsh-client-ui-renderer",
         "@deepseek-ai/dsh-client-ui-settings-general",
         "@deepseek-ai/dsh-client-ui-workspace",
-        "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-chat",
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-connection",
@@ -53,6 +53,16 @@
     "@deepseek-ai/cordis": "^4.0.5"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.5"
-  }
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-client-store": "link:../../third_party/deepseek-harness/packages/client/store",
+    "@deepseek-ai/dsh-client-ui-primitives": "link:../../third_party/deepseek-harness/packages/client/ui-primitives",
+    "@testing-library/react": "^16.3.3",
+    "@vitest/coverage-v8": "4.1.11",
+    "esbuild": "^0.28.2",
+    "jsdom": "^27.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vitest": "4.1.11"
+  },
+  "license": "Apache-2.0"
 }
