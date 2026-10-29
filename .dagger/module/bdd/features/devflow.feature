@@ -5,6 +5,12 @@ Feature: DevFlow host commands
     When I inspect the DevFlow command menu
     Then the menu contains all nine DevFlow commands
 
+  Scenario: DevFlow icons follow commands after menu filtering
+    Given the authenticated Web GUI is open
+    When I inspect the DevFlow command menu
+    And I filter the DevFlow command menu with "f"
+    Then the filtered DevFlow commands keep their icons
+
   Scenario: Deep research submits the original question to the conversation
     Given the authenticated Web GUI is open
     When I run the deep research command with a BDD question

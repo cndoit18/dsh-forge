@@ -86,6 +86,20 @@ Then('the menu contains all nine DevFlow commands', async ({ e2e }) => {
   }
 });
 
+When('I filter the DevFlow command menu with {string}', async ({ e2e }, query: string) => {
+  await e2e.fixtures.screen.getByRole('textbox').first().fill('/' + query);
+});
+
+Then('the filtered DevFlow commands keep their icons', async ({ e2e }) => {
+  await expect.poll(async () => e2e.fixtures.browser.evaluate(`(() => {
+    const rows = [...document.querySelectorAll('button[id^="dsh-slash-option-command-"]')];
+    return ['simplify', 'verify'].every(command => {
+      const row = rows.find(button => button.firstElementChild?.textContent === command);
+      return row !== undefined && getComputedStyle(row, '::before').maskImage.includes('data:image/svg+xml');
+    });
+  })()`)).toBe(true);
+});
+
 When('I run the deep research command with a BDD question', async ({ e2e }) => {
   await executeHostCommand(e2e.fixtures.browser, '/deep-research BDD scoped workflow');
 });
