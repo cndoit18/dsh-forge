@@ -20,37 +20,54 @@ async function loadClient() {
     document,
     MutationObserver: class { observe() {} disconnect() {} },
   })
-  return module.factory()
+  return module.factory(() => ({ createElement: (...args) => args }))
 }
 
-test('DevFlow commands replace only their generic command cards with empty views', async () => {
+async function loadDefinition() {
   const client = await loadClient()
-  const activations = []
-  const registrations = []
+  let definition
   const ctx = {
     locale: { register: () => () => {}, bind: () => value => value },
-    slots: {
-      inject(name, activate) {
-        assert.equal(name, 'conversation.chat.commandview')
-        activations.push(activate)
-      },
-      register(definition, view) {
-        registrations.push({ definition, view })
-        return () => {}
-      },
-    },
+    slots: { inject() {}, register() {} },
+    uiConversation: { events: { register(value) { definition = value } } },
     effect: contribute => contribute(),
     on() {},
   }
   client.apply(ctx)
-  assert.deepEqual([...client.inject].sort(), ['locale', 'slots'])
-  assert.equal(activations.length, 9)
-  for (const activate of activations) activate()
-  assert.deepEqual(registrations.map(({ definition }) => definition.key).sort(), [
-    'batch', 'debug', 'deep-research', 'init', 'review', 'run', 'security-review', 'simplify', 'verify',
-  ])
-  for (const { definition, view } of registrations) {
-    assert.equal(definition.name, 'conversation.chat.commandview')
-    assert.equal(view(), null)
+  assert.deepEqual([...client.inject].sort(), ['locale', 'slots', 'uiConversation'])
+  return definition
+}
+
+test('DevFlow projects its command as a Goal-style input without hiding the command result', async () => {
+  const definition = await loadDefinition()
+  const run = {
+    type: 'command/run', seq: 4, time: 100,
+    data: { commandId: 'command-devflow', name: 'deep-research', args: ' Compare DSH and Goal  ', source: { kind: 'user' } },
   }
+  const match = definition.match(run)
+  assert.equal(match.id, 'command-devflow')
+  assert.equal(match.role, 'start')
+  const state = definition.start({}, { event: run })
+  assert.equal(state.text, '/deep-research Compare DSH and Goal')
+  const node = definition.buildViewNode({
+    key: 'devflow-input', id: 'command-devflow', state,
+    start: { location: { kind: 'unresolved' } },
+  })
+  assert.equal(node.kind, 'devflow-command-input')
+  assert.equal(node.anchorSeq, 3.9)
+  assert.equal(node.data.text, state.text)
+  assert.equal(definition.match({ type: 'command/run', data: { name: 'goal' } }), null)
+})
+
+test('DevFlow suppresses only its duplicate ordinary followup bubble', async () => {
+  const definition = await loadDefinition()
+  const followup = {
+    type: 'user/message', seq: 5,
+    data: { id: 'followup-devflow', source: { kind: 'devflow' }, content: [] },
+  }
+  const match = definition.match(followup)
+  assert.equal(match.exclusive, true)
+  assert.equal(definition.start({}, { event: followup }), null)
+  assert.equal(definition.buildViewNode({ state: null }), null)
+  assert.equal(definition.match({ ...followup, data: { ...followup.data, source: { kind: 'user' } } }), null)
 })

@@ -54,10 +54,10 @@ test('submitting a command queues the visible user message before any workflow s
   assert.equal(jobs.length, 0)
   assert.equal(messages.length, 1)
   assert.equal(messages[0].role, 'user')
-  assert.equal(messages[0].source.kind, 'user')
+  assert.equal(messages[0].source.kind, 'devflow')
   assert.ok(messages[0].id)
   assert.equal(messages[0].content[0].text, '/deep-research Compare DSH Skills and Workflows')
-  assert.equal(commands.get('deep-research').recordInput, false)
+  assert.equal(commands.get('deep-research').recordInput, undefined)
 })
 
 test('the model tool publishes an owned job immediately while its workflow is still pending', async () => {

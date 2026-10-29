@@ -43,8 +43,6 @@ export function apply(ctx) {
       name,
       description,
       input: { hint: hints[name] },
-      // The ordinary user message owns the input; avoid a second command-input row.
-      recordInput: false,
       handler: ({ agent, rawInput }) => {
         if (!rawInput.trim() && name !== 'init') {
           return { kind: 'error', text: `/${name} requires input. ${hints[name]}` }
@@ -56,7 +54,7 @@ export function apply(ctx) {
           id: randomUUID(),
           role: 'user',
           content: [{ type: 'text', text: `/${name}${rawInput ? ` ${rawInput.trimStart()}` : ''}` }],
-          source: { kind: 'user' },
+          source: { kind: 'devflow' },
         })
         return { kind: 'success' }
       },
