@@ -5,17 +5,17 @@ Feature: DevFlow host commands
     When I inspect the DevFlow command menu
     Then the menu contains all nine DevFlow commands
 
-  Scenario: Deep research starts its packaged workflow directly
+  Scenario: Deep research submits the original question to the conversation
     Given the authenticated Web GUI is open
     When I run the deep research command with a BDD question
-    Then the deep research workflow reaches scope extraction
+    Then the deep research request appears as a user message
 
   Scenario: Deep research works with the ptc Agent preset
     Given the authenticated Web GUI is open
     When I run deep research with the ptc preset
-    Then the deep research workflow reaches scope extraction
+    Then the deep research request appears as a user message
 
   Scenario: Batch planning does not start worktree workers before approval
     Given the authenticated Web GUI is open
     When I run the batch command without an approved plan
-    Then batch returns a plan without starting worktree workers
+    Then batch submits its planning message without starting worktree workers

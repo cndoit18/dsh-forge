@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 
 export const name = 'devflow'
-export const inject = ['commands', 'agentPresets']
+export const inject = ['commands', 'agentPresets', 'tools', 'jobs']
 
 const descriptions = {
   'deep-research': '并行搜索并提取证据，每条论断三票核验，最后汇总带引用的结论。',
@@ -29,32 +30,98 @@ const metaFor = name => ({
 })
 
 export function apply(ctx) {
+  const activeJobs = new Map()
+  ctx.on('workflow/phase', (info, title) => {
+    const job = activeJobs.get(info.id)
+    job?.updateProgress(title)
+    job?.append(`▸ ${title}\n`, { channel: 'log' })
+  })
+  ctx.on('workflow/log', (info, message) => activeJobs.get(info.id)?.append(`${message}\n`, { channel: 'log' }))
+
   for (const [name, description] of Object.entries(descriptions)) {
     ctx.effect(() => ctx.commands.register({
       name,
       description,
       input: { hint: hints[name] },
-      handler: async ({ agent, rawInput, signal }) => {
+      // The ordinary user message owns the input; avoid a second command-input row.
+      recordInput: false,
+      handler: ({ agent, rawInput }) => {
         if (!rawInput.trim() && name !== 'init') {
           return { kind: 'error', text: `/${name} requires input. ${hints[name]}` }
         }
-        const workflowEngine = ctx.agentPresets.serviceFor(agent, 'workflowEngine')
-        if (!workflowEngine) {
+        if (!ctx.agentPresets.serviceFor(agent, 'workflowEngine')) {
           return { kind: 'error', text: `/${name} requires an Agent preset with Workflow support.` }
         }
-        const script = await readFile(new URL(`../workflows/${scriptFile(name)}.js`, import.meta.url), 'utf8')
-        const run = workflowEngine.start({
-          script,
-          meta: metaFor(name),
-          args: name === 'deep-research' ? { question: rawInput } : { instruction: rawInput },
-          parent: agent,
-          signal,
+        agent.followup({
+          id: randomUUID(),
+          role: 'user',
+          content: [{ type: 'text', text: `/${name}${rawInput ? ` ${rawInput.trimStart()}` : ''}` }],
+          source: { kind: 'user' },
         })
-        const result = await run.result
-        await run.dispose()
-        if (result.stopReason !== 'completed') return { kind: 'error', text: `/${name} failed: ${result.error ?? result.stopReason}` }
-        return { kind: 'success', text: typeof result.value === 'string' ? result.value : JSON.stringify(result.value, null, 2) }
+        return { kind: 'success' }
       },
     }), `devflow: ${name}`)
   }
+
+  ctx.effect(() => ctx.tools.register({
+    name: 'devflow',
+    description: 'Start the packaged research or development workflow requested by a DevFlow slash command in the user message: /deep-research, /batch, /init, /review, /simplify, /security-review, /debug, /run, or /verify. Returns a background job ID; completion is delivered to this conversation. Use job_output to collect results and job_kill to cancel. Do not restart a running job. Use only for an explicit DevFlow command.',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', enum: Object.keys(descriptions), description: 'Command name without the leading slash.' },
+        input: { type: 'string', description: 'Original arguments after the command name; empty is allowed only for init.' },
+      },
+      required: ['command', 'input'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: { command: { type: 'string' }, runId: { type: 'string' }, jobId: { type: 'string' } },
+        required: ['command', 'runId', 'jobId'],
+        additionalProperties: false,
+      },
+      render: (_args, value) => [{ type: 'text', text: `/${value.command} 已启动，任务编号：${value.jobId}。完成结果会回到当前会话；用 job_output 查看结果，用 job_kill 停止任务。` }],
+    },
+    execute: async ({ command, input }, exec) => {
+      if (!Object.hasOwn(descriptions, command)) throw new Error(`Unknown DevFlow command: ${command}`)
+      if (!input.trim() && command !== 'init') throw new Error(`/${command} requires input. ${hints[command]}`)
+      const workflowEngine = ctx.agentPresets.serviceFor(exec.agent, 'workflowEngine')
+      if (!workflowEngine) throw new Error(`/${command} requires an Agent preset with Workflow support.`)
+      const script = await readFile(new URL(`../workflows/${scriptFile(command)}.js`, import.meta.url), 'utf8')
+      exec.signal.throwIfAborted()
+      let run
+      const jobId = ctx.jobs.start({
+        kind: 'workflow',
+        label: command,
+        owner: exec.agent.id,
+        toolCall: { callId: exec.callId, rootCallId: exec.rootCallId },
+        run: job => {
+          // Once published, the job owns cancellation rather than the short PTC call.
+          run = workflowEngine.start({
+            script,
+            meta: metaFor(command),
+            args: command === 'deep-research' ? { question: input } : { instruction: input },
+            parent: exec.agent,
+          })
+          activeJobs.set(run.id, job)
+          return {
+            cancel: reason => run.cancel(reason ?? 'DevFlow job stopped'),
+            done: run.result.then(async result => {
+              try {
+                if (result.stopReason === 'cancelled') return { status: 'killed' }
+                if (result.stopReason !== 'completed') return { status: 'failed', detail: `/${command} failed: ${result.error ?? result.stopReason}` }
+                return { status: 'completed', result: typeof result.value === 'string' ? result.value : JSON.stringify(result.value, null, 2) }
+              } finally {
+                await run.dispose()
+                activeJobs.delete(run.id)
+              }
+            }),
+          }
+        },
+      })
+      return { command, runId: run.id, jobId }
+    },
+  }), 'devflow: workflow tool')
 }
