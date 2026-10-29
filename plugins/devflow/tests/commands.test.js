@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import { runInNewContext } from 'node:vm'
 import { apply, inject, name } from '../lib/index.js'
 
 function createHarness() {
@@ -51,7 +52,7 @@ test('submitting a command queues the visible user message before any workflow s
   for (const dependency of ['commands', 'agentPresets', 'tools', 'jobs']) assert.ok(inject.includes(dependency))
   assert.ok(!inject.includes('workflowEngine'))
   const result = await commands.get('deep-research').handler({ agent, rawInput: ' Compare DSH Skills and Workflows' })
-  assert.deepEqual(result, { kind: 'success' })
+  assert.deepEqual(result, { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
   assert.equal(runs.length, 0)
   assert.equal(jobs.length, 0)
   assert.equal(messages.length, 1)
@@ -59,7 +60,7 @@ test('submitting a command queues the visible user message before any workflow s
   assert.equal(messages[0].source.kind, 'devflow')
   assert.ok(messages[0].id)
   assert.equal(messages[0].content[0].text, '/deep-research Compare DSH Skills and Workflows')
-  assert.equal(commands.get('deep-research').recordInput, false)
+  assert.equal(commands.get('deep-research').recordInput, undefined)
 })
 
 test('the model tool publishes an owned job immediately while its workflow is still pending', async () => {
@@ -181,14 +182,30 @@ test('all development commands queue messages and use their packaged workflows',
   const { ctx, agent, commands, tools, runs, jobs, messages } = createHarness()
   apply(ctx)
   for (const command of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify']) {
-    const input = command === 'init' ? '' : 'target'
-    assert.deepEqual(await commands.get(command).handler({ agent, rawInput: input }), { kind: 'success' })
+    const input = ['init', 'review'].includes(command) ? '' : 'target'
+    assert.deepEqual(await commands.get(command).handler({ agent, rawInput: input }), { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
     assert.equal(messages.at(-1).content[0].text, `/${command}${input ? ` ${input}` : ''}`)
     const result = await tools.get('devflow').execute({ command, input }, execution(agent))
     assert.equal(result.command, command)
     assert.equal(runs.at(-1).spec.args.instruction, input)
     await jobs.at(-1).hooks.done
   }
+})
+
+test('review defaults to low only when no recognized strength is supplied', async () => {
+  const { ctx, tools } = createHarness()
+  apply(ctx)
+  assert.match(tools.get('devflow').parameters.properties.input.description, /init and review/)
+  const source = await readFile(new URL('../workflows/review.js', import.meta.url), 'utf8')
+  const run = async (instruction) => {
+    const prompts = []
+    await runInNewContext(`(async () => { ${source}
+ })()`, { args: { instruction }, phase() {}, async agent(prompt) { prompts.push(prompt); return 'reviewed' } })
+    return prompts[0]
+  }
+  assert.match(await run(''), /Review strength: low\./)
+  assert.match(await run('src/client.js'), /Review strength: low\./)
+  assert.match(await run('max'), /Review strength: max\./)
 })
 
 test('unloading removes the slash commands, model tool, and progress listeners', () => {

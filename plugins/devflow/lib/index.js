@@ -113,10 +113,8 @@ export function apply(ctx) {
       name,
       description,
       input: { hint: hints[name] },
-      // The ordinary user message owns the input; avoid a second command-input row.
-      recordInput: false,
       handler: ({ agent, rawInput }) => {
-        if (!rawInput.trim() && name !== 'init') {
+        if (!rawInput.trim() && !['init', 'review'].includes(name)) {
           return { kind: 'error', text: `/${name} requires input. ${hints[name]}` }
         }
         if (!ctx.agentPresets.serviceFor(agent, 'workflowEngine')) {
@@ -128,7 +126,7 @@ export function apply(ctx) {
           content: [{ type: 'text', text: `/${name}${rawInput ? ` ${rawInput.trimStart()}` : ''}` }],
           source: { kind: 'devflow' },
         })
-        return { kind: 'success' }
+        return { kind: 'success', text: '工作流已提交，等待 Agent 启动。' }
       },
     }), `devflow: ${name}`)
   }
@@ -140,7 +138,7 @@ export function apply(ctx) {
       type: 'object',
       properties: {
         command: { type: 'string', enum: Object.keys(descriptions), description: 'Command name without the leading slash.' },
-        input: { type: 'string', description: 'Original arguments after the command name; empty is allowed only for init.' },
+        input: { type: 'string', description: 'Original arguments after the command name; empty is allowed only for init and review.' },
       },
       required: ['command', 'input'],
       additionalProperties: false,
@@ -156,7 +154,7 @@ export function apply(ctx) {
     },
     execute: async ({ command, input }, exec) => {
       if (!Object.hasOwn(descriptions, command)) throw new Error(`Unknown DevFlow command: ${command}`)
-      if (!input.trim() && command !== 'init') throw new Error(`/${command} requires input. ${hints[command]}`)
+      if (!input.trim() && !['init', 'review'].includes(command)) throw new Error(`/${command} requires input. ${hints[command]}`)
       exec.signal.throwIfAborted()
       return startWorkflow(exec.agent, command, input, { callId: exec.callId, rootCallId: exec.rootCallId })
     },
