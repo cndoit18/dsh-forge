@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 
 export const name = 'devflow'
@@ -112,15 +113,22 @@ export function apply(ctx) {
       name,
       description,
       input: { hint: hints[name] },
-      handler: async ({ agent, rawInput }) => {
+      // The ordinary user message owns the input; avoid a second command-input row.
+      recordInput: false,
+      handler: ({ agent, rawInput }) => {
         if (!rawInput.trim() && name !== 'init') {
           return { kind: 'error', text: `/${name} requires input. ${hints[name]}` }
         }
         if (!ctx.agentPresets.serviceFor(agent, 'workflowEngine')) {
           return { kind: 'error', text: `/${name} requires an Agent preset with Workflow support.` }
         }
-        const { jobId } = await startWorkflow(agent, name, rawInput.trim())
-        return { kind: 'success', text: `工作流已启动，任务编号：${jobId}` }
+        agent.followup({
+          id: randomUUID(),
+          role: 'user',
+          content: [{ type: 'text', text: `/${name}${rawInput ? ` ${rawInput.trimStart()}` : ''}` }],
+          source: { kind: 'devflow' },
+        })
+        return { kind: 'success' }
       },
     }), `devflow: ${name}`)
   }
