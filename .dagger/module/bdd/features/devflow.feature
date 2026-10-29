@@ -14,12 +14,12 @@ Feature: DevFlow host commands
   Scenario: Deep research submits the original question to the conversation
     Given the authenticated Web GUI is open
     When I run the deep research command with a BDD question
-    Then the deep research request appears as a user message
+    Then the deep research request appears as command input
 
   Scenario: Deep research works with the ptc Agent preset
     Given the authenticated Web GUI is open
     When I run deep research with the ptc preset
-    Then the deep research request appears as a user message
+    Then the deep research request appears as command input
 
   Scenario: Batch planning does not start worktree workers before approval
     Given the authenticated Web GUI is open
