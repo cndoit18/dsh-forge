@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 
 export const name = 'devflow'
@@ -31,6 +30,34 @@ const metaFor = name => ({
 
 export function apply(ctx) {
   const activeJobs = new Map()
+  const activeSessions = new Map()
+  const append = (session, type, data) => {
+    try {
+      session.append(type, data)
+      return true
+    } catch (error) {
+      ctx.logger.warn(`devflow: disabled workflow record after ${type} append failed: ${String(error)}`)
+      return false
+    }
+  }
+  ctx.on('workflow/agent-start', (info, agent) => {
+    const session = activeSessions.get(info.id)
+    if (session !== undefined && !append(session, 'tool-workflow/agent-start', {
+      runId: info.id,
+      seq: agent.seq,
+      label: agent.label,
+      ...agent.phase === undefined ? {} : { phase: agent.phase },
+      childId: agent.childId,
+    })) activeSessions.delete(info.id)
+  })
+  ctx.on('workflow/agent-end', (info, agent) => {
+    const session = activeSessions.get(info.id)
+    if (session !== undefined && !append(session, 'tool-workflow/agent-end', {
+      runId: info.id,
+      seq: agent.seq,
+      outcome: agent.outcome,
+    })) activeSessions.delete(info.id)
+  })
   ctx.on('workflow/phase', (info, title) => {
     const job = activeJobs.get(info.id)
     job?.updateProgress(title)
@@ -38,25 +65,62 @@ export function apply(ctx) {
   })
   ctx.on('workflow/log', (info, message) => activeJobs.get(info.id)?.append(`${message}\n`, { channel: 'log' }))
 
+  const startWorkflow = async (agent, command, input, toolCall) => {
+    const workflowEngine = ctx.agentPresets.serviceFor(agent, 'workflowEngine')
+    if (!workflowEngine) throw new Error(`/${command} requires an Agent preset with Workflow support.`)
+    const script = await readFile(new URL(`../workflows/${scriptFile(command)}.js`, import.meta.url), 'utf8')
+    let run
+    const jobId = ctx.jobs.start({
+      kind: 'workflow',
+      label: command,
+      owner: agent.id,
+      ...toolCall === undefined ? {} : { toolCall },
+      run: job => {
+        run = workflowEngine.start({
+          script,
+          meta: metaFor(command),
+          args: command === 'deep-research' ? { question: input } : { instruction: input },
+          parent: agent,
+        })
+        activeJobs.set(run.id, job)
+        if (append(agent.session, 'tool-workflow/run-start', { runId: run.id, name })) {
+          activeSessions.set(run.id, agent.session)
+        }
+        return {
+          cancel: reason => run.cancel(reason ?? 'DevFlow job stopped'),
+          done: run.result.then(async result => {
+            try {
+              if (result.stopReason === 'cancelled') return { status: 'killed' }
+              if (result.stopReason !== 'completed') return { status: 'failed', detail: `/${command} failed: ${result.error ?? result.stopReason}` }
+              return { status: 'completed', result: typeof result.value === 'string' ? result.value : JSON.stringify(result.value, null, 2) }
+            } finally {
+              await run.dispose()
+              const session = activeSessions.get(run.id)
+              if (session !== undefined) append(session, 'tool-workflow/run-end', { runId: run.id, stopReason: result.stopReason })
+              activeSessions.delete(run.id)
+              activeJobs.delete(run.id)
+            }
+          }),
+        }
+      },
+    })
+    return { command, runId: run.id, jobId }
+  }
+
   for (const [name, description] of Object.entries(descriptions)) {
     ctx.effect(() => ctx.commands.register({
       name,
       description,
       input: { hint: hints[name] },
-      handler: ({ agent, rawInput }) => {
+      handler: async ({ agent, rawInput }) => {
         if (!rawInput.trim() && name !== 'init') {
           return { kind: 'error', text: `/${name} requires input. ${hints[name]}` }
         }
         if (!ctx.agentPresets.serviceFor(agent, 'workflowEngine')) {
           return { kind: 'error', text: `/${name} requires an Agent preset with Workflow support.` }
         }
-        agent.followup({
-          id: randomUUID(),
-          role: 'user',
-          content: [{ type: 'text', text: `/${name}${rawInput ? ` ${rawInput.trimStart()}` : ''}` }],
-          source: { kind: 'devflow' },
-        })
-        return { kind: 'success' }
+        const { jobId } = await startWorkflow(agent, name, rawInput.trim())
+        return { kind: 'success', text: `工作流已启动，任务编号：${jobId}` }
       },
     }), `devflow: ${name}`)
   }
@@ -85,41 +149,8 @@ export function apply(ctx) {
     execute: async ({ command, input }, exec) => {
       if (!Object.hasOwn(descriptions, command)) throw new Error(`Unknown DevFlow command: ${command}`)
       if (!input.trim() && command !== 'init') throw new Error(`/${command} requires input. ${hints[command]}`)
-      const workflowEngine = ctx.agentPresets.serviceFor(exec.agent, 'workflowEngine')
-      if (!workflowEngine) throw new Error(`/${command} requires an Agent preset with Workflow support.`)
-      const script = await readFile(new URL(`../workflows/${scriptFile(command)}.js`, import.meta.url), 'utf8')
       exec.signal.throwIfAborted()
-      let run
-      const jobId = ctx.jobs.start({
-        kind: 'workflow',
-        label: command,
-        owner: exec.agent.id,
-        toolCall: { callId: exec.callId, rootCallId: exec.rootCallId },
-        run: job => {
-          // Once published, the job owns cancellation rather than the short PTC call.
-          run = workflowEngine.start({
-            script,
-            meta: metaFor(command),
-            args: command === 'deep-research' ? { question: input } : { instruction: input },
-            parent: exec.agent,
-          })
-          activeJobs.set(run.id, job)
-          return {
-            cancel: reason => run.cancel(reason ?? 'DevFlow job stopped'),
-            done: run.result.then(async result => {
-              try {
-                if (result.stopReason === 'cancelled') return { status: 'killed' }
-                if (result.stopReason !== 'completed') return { status: 'failed', detail: `/${command} failed: ${result.error ?? result.stopReason}` }
-                return { status: 'completed', result: typeof result.value === 'string' ? result.value : JSON.stringify(result.value, null, 2) }
-              } finally {
-                await run.dispose()
-                activeJobs.delete(run.id)
-              }
-            }),
-          }
-        },
-      })
-      return { command, runId: run.id, jobId }
+      return startWorkflow(exec.agent, command, input, { callId: exec.callId, rootCallId: exec.rootCallId })
     },
   }), 'devflow: workflow tool')
 }

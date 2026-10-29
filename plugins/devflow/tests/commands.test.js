@@ -11,11 +11,12 @@ function createHarness() {
   const jobs = []
   const messages = []
   const disposers = []
-  const agent = { id: 'session-test', session: { id: 'session-test' }, followup(message) { messages.push(message) } }
+  const events = []
+  const agent = { id: 'session-test', session: { id: 'session-test', append(type, data) { events.push({ type, data }) } }, followup(message) { messages.push(message) } }
   const workflowEngine = {
     start(spec) {
       const run = {
-        id: 'run-test', disposed: false, result: Promise.resolve({ stopReason: 'completed', value: { ok: true } }),
+        id: 'run-test', meta: spec.meta, disposed: false, result: Promise.resolve({ stopReason: 'completed', value: { ok: true } }),
         cancel(reason) { this.cancelReason = reason },
         async dispose() { this.disposed = true },
       }
@@ -35,28 +36,27 @@ function createHarness() {
     } },
     agentPresets: { serviceFor(subject, service) { assert.equal(subject, agent); assert.equal(service, 'workflowEngine'); return workflowEngine } },
     effect(contribute) { disposers.push(contribute()) },
+    logger: { warn() {} },
     on(event, listener) { listeners.set(event, listener); disposers.push(() => listeners.delete(event)) },
   }
-  return { ctx, agent, commands, tools, runs, jobs, messages, listeners, disposers, workflowEngine }
+  return { ctx, agent, commands, tools, runs, jobs, messages, events, listeners, disposers, workflowEngine }
 }
 
 const execution = agent => ({ agent, signal: new AbortController().signal, callId: 'call-test', rootCallId: 'root-test' })
 
-test('submitting a command queues the visible user message before any workflow starts', async () => {
-  const { ctx, agent, commands, runs, jobs, messages } = createHarness()
+test('submitting a command starts its workflow immediately without an Agent message round-trip', async () => {
+  const { ctx, agent, commands, runs, jobs, messages, events } = createHarness()
   apply(ctx)
   assert.equal(name, 'devflow')
   for (const dependency of ['commands', 'agentPresets', 'tools', 'jobs']) assert.ok(inject.includes(dependency))
   assert.ok(!inject.includes('workflowEngine'))
   const result = await commands.get('deep-research').handler({ agent, rawInput: ' Compare DSH Skills and Workflows' })
-  assert.deepEqual(result, { kind: 'success' })
-  assert.equal(runs.length, 0)
-  assert.equal(jobs.length, 0)
-  assert.equal(messages.length, 1)
-  assert.equal(messages[0].role, 'user')
-  assert.equal(messages[0].source.kind, 'devflow')
-  assert.ok(messages[0].id)
-  assert.equal(messages[0].content[0].text, '/deep-research Compare DSH Skills and Workflows')
+  assert.deepEqual(result, { kind: 'success', text: '工作流已启动，任务编号：workflow-test-1' })
+  assert.equal(runs.length, 1)
+  assert.equal(jobs.length, 1)
+  assert.equal(messages.length, 0)
+  assert.equal(runs[0].spec.args.question, 'Compare DSH Skills and Workflows')
+  assert.equal(events[0].type, 'tool-workflow/run-start')
   assert.equal(commands.get('deep-research').recordInput, undefined)
 })
 
@@ -66,7 +66,6 @@ test('the model tool publishes an owned job immediately while its workflow is st
   const start = workflowEngine.start
   workflowEngine.start = spec => { const run = start(spec); run.result = pending.promise; return run }
   apply(ctx)
-  await commands.get('deep-research').handler({ agent, rawInput: 'question' })
   assert.equal(runs.length, 0)
   const abort = new AbortController()
   const exec = { ...execution(agent), signal: abort.signal }
@@ -129,7 +128,7 @@ test('workflow comments do not expose literal Unicode escape sequences', async (
   assert.ok(!comments.some(line => /\\u[0-9a-fA-F]{4}/.test(line)))
 })
 
-test('empty commands fail before queuing a message or starting a workflow', async () => {
+test('empty commands fail before starting a workflow', async () => {
   const { ctx, agent, commands, tools, runs, messages } = createHarness()
   apply(ctx)
   const result = await commands.get('deep-research').handler({ agent, rawInput: ' ' })
@@ -148,7 +147,7 @@ test('an aborted tool call cannot start a background job after loading its scrip
   assert.equal(jobs.length, 0)
 })
 
-test('a missing workflow engine rejects before queuing a user message', async () => {
+test('a missing workflow engine rejects before starting a workflow', async () => {
   const { ctx, agent, commands, messages } = createHarness()
   ctx.agentPresets.serviceFor = () => undefined
   apply(ctx)
@@ -176,15 +175,14 @@ test('workflow failure and cancellation become terminal job outcomes and dispose
   }
 })
 
-test('all development commands queue messages and use their packaged workflows', async () => {
-  const { ctx, agent, commands, tools, runs, jobs, messages } = createHarness()
+test('all development commands start their packaged workflows', async () => {
+  const { ctx, agent, commands, runs, jobs } = createHarness()
   apply(ctx)
   for (const command of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify']) {
     const input = command === 'init' ? '' : 'target'
-    assert.deepEqual(await commands.get(command).handler({ agent, rawInput: input }), { kind: 'success' })
-    assert.equal(messages.at(-1).content[0].text, `/${command}${input ? ` ${input}` : ''}`)
-    const result = await tools.get('devflow').execute({ command, input }, execution(agent))
-    assert.equal(result.command, command)
+    const result = await commands.get(command).handler({ agent, rawInput: input })
+    assert.equal(result.kind, 'success')
+    assert.match(result.text, /工作流已启动/)
     assert.equal(runs.at(-1).spec.args.instruction, input)
     await jobs.at(-1).hooks.done
   }
