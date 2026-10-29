@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { expect } from 'e2e';
 import { Then, When } from './fixtures.js';
 
-const devflowCommands = ['init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify', 'batch', 'deep-research'];
+const devflowCommands = ['init', 'review', 'simplify', 'skillopt', 'security-review', 'debug', 'run', 'verify', 'batch', 'deep-research'];
 
 async function executeHostCommand(browser: any, line: string, agentPreset?: string) {
   await browser.evaluate(`(async () => {
@@ -67,16 +67,16 @@ When('I inspect the DevFlow command menu', async ({ e2e }) => {
   await e2e.fixtures.screen.getByRole('button', { name: 'Add files or run commands' }).tap();
 });
 
-Then('the menu contains all nine DevFlow commands', async ({ e2e }) => {
+Then('the menu contains all ten DevFlow commands', async ({ e2e }) => {
   const labels = await e2e.fixtures.browser.evaluate('[...document.querySelectorAll(\'[id^="dsh-slash-option-command-"]\')].map(element => element.textContent ?? \'\')');
   for (const command of devflowCommands) {
     assert.ok(labels.some((label: string) => label.includes(command)), 'missing /' + command + '; menu: ' + labels.join(' | '));
-    await expect.poll(async () => e2e.fixtures.browser.evaluate(`[...document.querySelectorAll('button[role="option"]')].filter(button => getComputedStyle(button, '::before').maskImage.includes('data:image/svg+xml')).length`)).toBe(9);
+    await expect.poll(async () => e2e.fixtures.browser.evaluate(`[...document.querySelectorAll('button[role="option"]')].filter(button => getComputedStyle(button, '::before').maskImage.includes('data:image/svg+xml')).length`)).toBe(10);
     const localizedLabels = await e2e.fixtures.browser.evaluate(`[...document.querySelectorAll('button[role="option"]')].slice(8).map(button => getComputedStyle(button.firstElementChild, '::before').content)`);
     const language = await e2e.fixtures.browser.evaluate('document.documentElement.lang');
     const expectedLabels = language === 'zh-CN'
-      ? ['"批量 "', '"调试 "', '"深度研究 "', '"初始化 "', '"审查 "', '"运行 "', '"安全审查 "', '"简化 "', '"验证 "']
-      : ['"Batch "', '"Debug "', '"Deep research "', '"Init "', '"Review "', '"Run "', '"Security review "', '"Simplify "', '"Verify "'];
+      ? ['"批量 "', '"调试 "', '"深度研究 "', '"初始化 "', '"审查 "', '"运行 "', '"安全审查 "', '"简化 "', '"技能优化 "', '"验证 "']
+      : ['"Batch "', '"Debug "', '"Deep research "', '"Init "', '"Review "', '"Run "', '"Security review "', '"Simplify "', '"SkillOpt "', '"Verify "'];
     assert.deepEqual(localizedLabels, expectedLabels);
     const aliasStyle = await e2e.fixtures.browser.evaluate(`(() => {
       const label = document.querySelector('#dsh-slash-option-command-8 > span:first-child');

@@ -181,7 +181,7 @@ test('workflow failure and cancellation become terminal job outcomes and dispose
 test('all development commands queue messages and use their packaged workflows', async () => {
   const { ctx, agent, commands, tools, runs, jobs, messages } = createHarness()
   apply(ctx)
-  for (const command of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify']) {
+  for (const command of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify', 'skillopt']) {
     const input = ['init', 'review'].includes(command) ? '' : 'target'
     assert.deepEqual(await commands.get(command).handler({ agent, rawInput: input }), { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
     assert.equal(messages.at(-1).content[0].text, `/${command}${input ? ` ${input}` : ''}`)
@@ -211,7 +211,7 @@ test('review defaults to low only when no recognized strength is supplied', asyn
 test('unloading removes the slash commands, model tool, and progress listeners', () => {
   const { ctx, commands, tools, listeners, disposers } = createHarness()
   apply(ctx)
-  assert.equal(commands.size, 9)
+  assert.equal(commands.size, 10)
   assert.equal(tools.size, 1)
   for (const dispose of disposers) dispose()
   assert.equal(commands.size, 0)

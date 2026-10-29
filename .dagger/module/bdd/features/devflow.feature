@@ -1,9 +1,9 @@
 Feature: DevFlow host commands
 
-  Scenario: DevFlow exposes all nine host commands
+  Scenario: DevFlow exposes all ten host commands
     Given the authenticated Web GUI is open
     When I inspect the DevFlow command menu
-    Then the menu contains all nine DevFlow commands
+    Then the menu contains all ten DevFlow commands
 
   Scenario: DevFlow icons follow commands after menu filtering
     Given the authenticated Web GUI is open
