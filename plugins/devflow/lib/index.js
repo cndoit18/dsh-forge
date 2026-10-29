@@ -14,7 +14,7 @@ const descriptions = {
   debug: '根据运行时证据、日志和最小复现定位并修复问题。',
   run: '启动并实际操作项目，通过真实用户入口验证变更。',
   verify: '通过真实应用流程端到端验证变更，不只依赖测试或类型检查。',
-  skillopt: '通过示例回放、技能写作和留出验证门创建或优化 Skill。',
+  skillopt: '通过多轮示例回放、反思编辑和留出验证门创建或优化 Skill。',
 }
 const hints = {
   'deep-research': '<研究问题>', batch: '<大型变更>', init: '[项目偏好]',
@@ -25,7 +25,7 @@ const hints = {
 const scriptFile = name => name === 'init' ? 'init-workflow' : name === 'batch' ? 'batch-workflow' : name
 const phaseTitles = {
   'deep-research': ['范围界定', '并行搜索', '抓取与提取', '三票核验', '综合结论'],
-  skillopt: ['准备与拆分', '基线回放', '反思编辑', '生成候选', '留出验证', '应用结果'],
+  skillopt: ['准备与拆分', '基线回放', '多轮回放与反思编辑', '生成候选', '留出验证', '应用结果'],
 }
 const metaFor = name => ({
   name,
