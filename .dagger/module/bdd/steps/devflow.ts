@@ -58,7 +58,7 @@ async function submittedMessage(browser: any) {
     const events = page.records.map(record => record.event);
     const submitted = [...pending, ...events.filter(event => event.type === 'user/message').map(event => event.data)];
     const found = submitted.some(message => message.content?.some(block => block.type === 'text' && block.text === line));
-    return { found, tools: events.filter(event => event.type === 'tool/call').map(event => event.data.name) };
+    return { found, blank: projection?.values?.sessionListMetadata?.blank, tools: events.filter(event => event.type === 'tool/call').map(event => event.data.name) };
   })()`);
 }
 
@@ -108,6 +108,7 @@ Then('the deep research request appears as a user message', async ({ e2e }) => {
   const result = await commandResult(e2e.fixtures.browser);
   assert.deepEqual(result, { kind: 'success' });
   await expect.poll(async () => (await submittedMessage(e2e.fixtures.browser)).found).toBe(true);
+  await expect.poll(async () => (await submittedMessage(e2e.fixtures.browser)).blank).toBe(false);
 });
 
 When('I run deep research with the ptc preset', async ({ e2e }) => {

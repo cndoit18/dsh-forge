@@ -44,20 +44,22 @@ function createHarness() {
 
 const execution = agent => ({ agent, signal: new AbortController().signal, callId: 'call-test', rootCallId: 'root-test' })
 
-test('submitting a command starts its workflow immediately without an Agent message round-trip', async () => {
-  const { ctx, agent, commands, runs, jobs, messages, events } = createHarness()
+test('submitting a command queues the visible user message before any workflow starts', async () => {
+  const { ctx, agent, commands, runs, jobs, messages } = createHarness()
   apply(ctx)
   assert.equal(name, 'devflow')
   for (const dependency of ['commands', 'agentPresets', 'tools', 'jobs']) assert.ok(inject.includes(dependency))
   assert.ok(!inject.includes('workflowEngine'))
   const result = await commands.get('deep-research').handler({ agent, rawInput: ' Compare DSH Skills and Workflows' })
-  assert.deepEqual(result, { kind: 'success', text: '工作流已启动，任务编号：workflow-test-1' })
-  assert.equal(runs.length, 1)
-  assert.equal(jobs.length, 1)
-  assert.equal(messages.length, 0)
-  assert.equal(runs[0].spec.args.question, 'Compare DSH Skills and Workflows')
-  assert.equal(events[0].type, 'tool-workflow/run-start')
-  assert.equal(commands.get('deep-research').recordInput, undefined)
+  assert.deepEqual(result, { kind: 'success' })
+  assert.equal(runs.length, 0)
+  assert.equal(jobs.length, 0)
+  assert.equal(messages.length, 1)
+  assert.equal(messages[0].role, 'user')
+  assert.equal(messages[0].source.kind, 'devflow')
+  assert.ok(messages[0].id)
+  assert.equal(messages[0].content[0].text, '/deep-research Compare DSH Skills and Workflows')
+  assert.equal(commands.get('deep-research').recordInput, false)
 })
 
 test('the model tool publishes an owned job immediately while its workflow is still pending', async () => {
@@ -175,14 +177,15 @@ test('workflow failure and cancellation become terminal job outcomes and dispose
   }
 })
 
-test('all development commands start their packaged workflows', async () => {
-  const { ctx, agent, commands, runs, jobs } = createHarness()
+test('all development commands queue messages and use their packaged workflows', async () => {
+  const { ctx, agent, commands, tools, runs, jobs, messages } = createHarness()
   apply(ctx)
   for (const command of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify']) {
     const input = command === 'init' ? '' : 'target'
-    const result = await commands.get(command).handler({ agent, rawInput: input })
-    assert.equal(result.kind, 'success')
-    assert.match(result.text, /工作流已启动/)
+    assert.deepEqual(await commands.get(command).handler({ agent, rawInput: input }), { kind: 'success' })
+    assert.equal(messages.at(-1).content[0].text, `/${command}${input ? ` ${input}` : ''}`)
+    const result = await tools.get('devflow').execute({ command, input }, execution(agent))
+    assert.equal(result.command, command)
     assert.equal(runs.at(-1).spec.args.instruction, input)
     await jobs.at(-1).hooks.done
   }
