@@ -1,0 +1,3 @@
+- insert:
+    - id: devflow
+      name: "@dshforge/devflow"

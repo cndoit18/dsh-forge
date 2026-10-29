@@ -8,6 +8,9 @@ Given('the authenticated Web GUI is open', async ({ e2e }) => {
   const continueButton = e2e.fixtures.screen.getByRole('button', { name: 'Continue' });
   await continueButton.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
   if (await continueButton.isVisible()) await continueButton.tap();
+  const closeGetStarted = e2e.fixtures.screen.getByRole('dialog', { name: 'Get started' }).getByRole('button', { name: 'Close' });
+  await closeGetStarted.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
+  if (await closeGetStarted.isVisible()) await closeGetStarted.tap();
 });
 
 When('I send {string} to the agent', async ({ e2e }, message: string) => {

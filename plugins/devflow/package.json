@@ -1,0 +1,49 @@
+{
+  "name": "@dshforge/devflow",
+  "version": "0.1.1",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./src/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/",
+    "src/",
+    "workflows/",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.3 <0.3.0",
+    "node": ">=24.9.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-commands",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-agent-preset-registry": ">=0.2.1-rc.3 <0.3.0",
+    "@deepseek-ai/dsh-commands": ">=0.2.1-rc.3 <0.3.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-agent-preset-registry": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-commands": "0.2.1-rc.3"
+  },
+  "license": "Apache-2.0"
+}
