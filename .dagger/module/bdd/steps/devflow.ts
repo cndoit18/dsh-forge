@@ -4,11 +4,11 @@ import { Then, When } from './fixtures.js';
 
 const devflowCommands = ['init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify', 'batch', 'deep-research'];
 
-async function executeHostCommand(browser: any, line: string) {
+async function executeHostCommand(browser: any, line: string, agentPreset?: string) {
   await browser.evaluate(`(async () => {
     const created = await fetch('/api/session/create', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId: 'bdd-devflow-session', method: 'session/create', payload: { args: { request: {} } } }),
+      body: JSON.stringify({ type: 'client-request', rpcId: 'bdd-devflow-session', method: 'session/create', payload: { args: { request: ${agentPreset ? `{ agentPreset: ${JSON.stringify(agentPreset)} }` : '{}'} } } }),
     }).then(response => response.json());
     const sessionId = created.result?.value?.sessionId;
     if (!sessionId) throw new Error('session/create failed: ' + JSON.stringify(created));
@@ -68,6 +68,10 @@ When('I run the deep research command with a BDD question', async ({ e2e }) => {
 Then('the deep research workflow reaches scope extraction', async ({ e2e }) => {
   const result = await commandResult(e2e.fixtures.browser);
   assert.match(result.text ?? '', /Scope agent returned no result|Research scope extraction failed/);
+});
+
+When('I run deep research with the ptc preset', async ({ e2e }) => {
+  await executeHostCommand(e2e.fixtures.browser, '/deep-research BDD scoped workflow', 'ptc');
 });
 
 When('I run the batch command without an approved plan', async ({ e2e }) => {
