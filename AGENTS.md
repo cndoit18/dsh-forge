@@ -20,7 +20,7 @@ dsh-forge 是 DeepSeek Harness（DSH）的**容器化构建、运行与 Web 插�
 3. **遵循插件契约**：`plugins/` 下每个包含 `package.json` 的直接子目录是一个独立插件。新增或修改插件时，遵循 `plugins/hello-world/README.md` 的包结构与加载契约，不为安装插件手改全局 Cordis 配置。
 4. **遵守设计系统**：插件 UI 必须遵循 `DESIGN.md`，使用语义化 token 并兼容明暗主题；不引入装饰性颜色或动效。
 5. **保留基础检查**：Go 改动须格式化，并用 `gofmt -l .dagger/module/dsh` 确认无输出；插件 JS 改动须逐文件运行 `node --check`。
-6. **始终完整验证**：任何改动在完成前都必须执行完整 Dagger 构建并实际启动 Web。默认使用上述命令检查页面可访问及 `hello-world` 状态栏；涉及其他插件时，加入对应 `--plugins` 并验证其行为。静态检查或构建成功不能替代 Web 验证。
+6. **以 BDD + 视频验收**：Web 仅用于调试；最终功能演示和交付证据必须使用 BDD 与视频。功能改动完成前，使用下方命令执行完整 Dagger BDD 并导出产物；静态检查或构建成功不能替代行为验证。
 7. **保护启动凭据**：启动日志中的认证 URL 携带进程令牌，不得提交、公开或复用到其他进程。
 
 ## 源码与构建布局
@@ -54,16 +54,19 @@ cd plugins/devflow && pnpm test
 node --test plugins/devflow/tests/commands.test.js
 ```
 
-单元测试使用 `node:test`。BDD 使用 Gherkin 和 Playwright-BDD，单 worker、零 retry、120 秒场景超时；AI 场景仅在 `--ai=true` 时执行：
+单元测试使用 `node:test`。BDD 使用 Gherkin 和 Playwright-BDD，单 worker、零 retry、120 秒场景超时；AI 场景仅在 `--ai=true` 时执行。视频默认关闭，`--video` 会记录每次尝试：
 
 ```sh
 dagger --progress=plain call bdd run \
   --plugins ./plugins/agent-plugins \
   --plugins ./plugins/devflow \
-  --mock-data .dagger/module/bdd/testdata/mock-data
+  --mock-data .dagger/module/bdd/testdata/mock-data \
+  --ai=true \
+  --video \
+  --output .artifacts/bdd
 ```
 
-需要 AI 场景时添加 `--ai=true`；完整参数见 [.dagger/module/bdd/README.md](.dagger/module/bdd/README.md)。分插件测试和 BDD 不替代项目规则第 6 条的 Web 实际行为验证。
+产物来自容器 `/bdd/.e2e`，包括视频、`run-output.txt`、测试状态及 aimock journal。视频可能包含页面内容，只能使用不含真实凭据或用户数据的 fixture。完整参数见 [.dagger/module/bdd/README.md](.dagger/module/bdd/README.md)。
 
 ## 插件与发布约定
 
