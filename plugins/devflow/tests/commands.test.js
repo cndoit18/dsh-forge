@@ -125,6 +125,27 @@ test('command menu copy and input hints are Chinese', () => {
   }
 })
 
+test('skillopt copy and phase metadata describe iterative optimization', async () => {
+  const { ctx, agent, commands, tools, runs, jobs } = createHarness()
+  apply(ctx)
+  const description = '通过多轮示例回放、反思编辑和留出验证门创建或优化 Skill。'
+  assert.equal(commands.get('skillopt').description, description)
+  await tools.get('devflow').execute({ command: 'skillopt', input: 'target' }, execution(agent))
+  assert.deepEqual(runs[0].spec.meta, {
+    name: 'skillopt',
+    description,
+    phases: [
+      { title: '准备与拆分' },
+      { title: '基线回放' },
+      { title: '多轮回放与反思编辑' },
+      { title: '生成候选' },
+      { title: '留出验证' },
+      { title: '应用结果' },
+    ],
+  })
+  await jobs[0].hooks.done
+})
+
 test('workflow comments do not expose literal Unicode escape sequences', async () => {
   const source = await readFile(new URL('../workflows/deep-research.js', import.meta.url), 'utf8')
   const comments = source.split('\n').filter(line => line.trimStart().startsWith('//'))
