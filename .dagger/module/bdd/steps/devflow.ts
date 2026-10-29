@@ -12,6 +12,9 @@ async function executeHostCommand(browser: any, line: string, agentPreset?: stri
     }).then(response => response.json());
     const sessionId = created.result?.value?.sessionId;
     if (!sessionId) throw new Error('session/create failed: ' + JSON.stringify(created));
+    ${agentPreset ? `if (created.result.value.agentPreset !== ${JSON.stringify(agentPreset)}) throw new Error('session/create did not select the requested preset');` : ''}
+    sessionStorage.setItem('devflow.bdd.session', sessionId);
+    sessionStorage.setItem('devflow.bdd.line', ${JSON.stringify(line)});
     const permission = await fetch('/api/commands/execute', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -35,6 +38,28 @@ async function executeHostCommand(browser: any, line: string, agentPreset?: stri
 
 async function commandResult(browser: any) {
   return JSON.parse(await browser.evaluate('sessionStorage.getItem(\'devflow.bdd.result\')') as string);
+}
+
+async function submittedMessage(browser: any) {
+  return browser.evaluate(`(async () => {
+    const sessionId = sessionStorage.getItem('devflow.bdd.session');
+    const line = sessionStorage.getItem('devflow.bdd.line');
+    const rpc = async (method, request) => {
+      const response = await fetch('/api/' + method, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ type: 'client-request', rpcId: 'bdd-devflow-history', method, payload: { args: { request } } }),
+      }).then(response => response.json());
+      if (!response.result?.ok) throw new Error(method + ' failed: ' + JSON.stringify(response));
+      return response.result.value;
+    };
+    const projection = await rpc('session/projections', { sessionId });
+    const pending = Object.values(projection?.values?.inbox ?? {}).flat();
+    const page = await rpc('session/page', { address: { kind: 'session', sessionId }, throughSeq: projection.asOfSeq, maxMessages: 20 });
+    const events = page.records.map(record => record.event);
+    const submitted = [...pending, ...events.filter(event => event.type === 'user/message').map(event => event.data)];
+    const found = submitted.some(message => message.content?.some(block => block.type === 'text' && block.text === line));
+    return { found, tools: events.filter(event => event.type === 'tool/call').map(event => event.data.name) };
+  })()`);
 }
 
 When('I inspect the DevFlow command menu', async ({ e2e }) => {
@@ -65,9 +90,10 @@ When('I run the deep research command with a BDD question', async ({ e2e }) => {
   await executeHostCommand(e2e.fixtures.browser, '/deep-research BDD scoped workflow');
 });
 
-Then('the deep research workflow reaches scope extraction', async ({ e2e }) => {
+Then('the deep research request appears as a user message', async ({ e2e }) => {
   const result = await commandResult(e2e.fixtures.browser);
-  assert.match(result.text ?? '', /Scope agent returned no result|Research scope extraction failed/);
+  assert.deepEqual(result, { kind: 'success' });
+  await expect.poll(async () => (await submittedMessage(e2e.fixtures.browser)).found).toBe(true);
 });
 
 When('I run deep research with the ptc preset', async ({ e2e }) => {
@@ -78,9 +104,10 @@ When('I run the batch command without an approved plan', async ({ e2e }) => {
   await executeHostCommand(e2e.fixtures.browser, '/batch BDD isolated units');
 });
 
-Then('batch returns a plan without starting worktree workers', async ({ e2e }) => {
+Then('batch submits its planning message without starting worktree workers', async ({ e2e }) => {
   const result = await commandResult(e2e.fixtures.browser);
-  assert.equal(result.kind, 'success');
-  assert.match(result.text ?? '', /plan-ready/);
-  assert.ok(!result.text?.includes('create_worktree'), 'batch must not create worktrees before plan approval');
+  assert.deepEqual(result, { kind: 'success' });
+  await expect.poll(async () => (await submittedMessage(e2e.fixtures.browser)).found).toBe(true);
+  const submitted = await submittedMessage(e2e.fixtures.browser);
+  assert.ok(!submitted.tools.includes('create_worktree'), 'batch must not create worktrees before plan approval');
 });
