@@ -87,7 +87,7 @@ Then('the menu contains all nine DevFlow commands', async ({ e2e }) => {
 });
 
 When('I filter the DevFlow command menu with {string}', async ({ e2e }, query: string) => {
-  await e2e.fixtures.screen.getByRole('textbox').first().fill('/' + query);
+  await e2e.fixtures.screen.locator('[data-composer-input]').fill('/' + query);
 });
 
 Then('the filtered DevFlow commands keep their icons', async ({ e2e }) => {
