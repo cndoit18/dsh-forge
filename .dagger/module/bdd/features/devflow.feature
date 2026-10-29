@@ -10,6 +10,11 @@ Feature: DevFlow host commands
     When I run the deep research command with a BDD question
     Then the deep research workflow reaches scope extraction
 
+  Scenario: Deep research works with the ptc Agent preset
+    Given the authenticated Web GUI is open
+    When I run deep research with the ptc preset
+    Then the deep research workflow reaches scope extraction
+
   Scenario: Batch planning does not start worktree workers before approval
     Given the authenticated Web GUI is open
     When I run the batch command without an approved plan

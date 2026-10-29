@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"dagger/npm/internal/dagger"
 )
@@ -99,6 +100,7 @@ func publishContainer(pkg *dagger.Directory, token *dagger.Secret, oidcRequestUR
 			WithEnvVariable("NPM_CONFIG_PROVENANCE", "false")
 	}
 	return container.
+		WithEnvVariable("PUBLISH_NONCE", strconv.FormatInt(time.Now().UnixNano(), 10)).
 		WithEnvVariable("DRY_RUN", strconv.FormatBool(dryRun)).
 		WithEnvVariable("STAGE", strconv.FormatBool(stage)).
 		WithExec([]string{"sh", "-c", publishScript})
