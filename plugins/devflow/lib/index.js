@@ -14,19 +14,23 @@ const descriptions = {
   debug: '根据运行时证据、日志和最小复现定位并修复问题。',
   run: '启动并实际操作项目，通过真实用户入口验证变更。',
   verify: '通过真实应用流程端到端验证变更，不只依赖测试或类型检查。',
+  skillopt: '通过示例回放、技能写作和留出验证门创建或优化 Skill。',
 }
 const hints = {
   'deep-research': '<研究问题>', batch: '<大型变更>', init: '[项目偏好]',
   review: '[审查强度] [--fix] [--comment] [目标]', simplify: '[目标]',
   'security-review': '[目标]', debug: '[问题现象]', run: '[运行任务]', verify: '[预期结果]',
+  skillopt: '<技能目标或文件路径及示例/评测任务>',
 }
 const scriptFile = name => name === 'init' ? 'init-workflow' : name === 'batch' ? 'batch-workflow' : name
+const phaseTitles = {
+  'deep-research': ['范围界定', '并行搜索', '抓取与提取', '三票核验', '综合结论'],
+  skillopt: ['准备与拆分', '基线回放', '反思编辑', '生成候选', '留出验证', '应用结果'],
+}
 const metaFor = name => ({
   name,
   description: descriptions[name],
-  phases: name === 'deep-research'
-    ? ['范围界定', '并行搜索', '抓取与提取', '三票核验', '综合结论'].map(title => ({ title }))
-    : undefined,
+  phases: phaseTitles[name]?.map(title => ({ title })),
 })
 
 export function apply(ctx) {
@@ -133,7 +137,7 @@ export function apply(ctx) {
 
   ctx.effect(() => ctx.tools.register({
     name: 'devflow',
-    description: 'Start the packaged research or development workflow requested by a DevFlow slash command in the user message: /deep-research, /batch, /init, /review, /simplify, /security-review, /debug, /run, or /verify. Returns a background job ID; completion is delivered to this conversation. Use job_output to collect results and job_kill to cancel. Do not restart a running job. Use only for an explicit DevFlow command.',
+    description: 'Start the packaged research or development workflow requested by a DevFlow slash command in the user message: /deep-research, /batch, /init, /review, /simplify, /security-review, /debug, /run, /verify, or /skillopt. Returns a background job ID; completion is delivered to this conversation. Use job_output to collect results and job_kill to cancel. Do not restart a running job. Use only for an explicit DevFlow command.',
     parameters: {
       type: 'object',
       properties: {

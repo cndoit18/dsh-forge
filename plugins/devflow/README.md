@@ -5,6 +5,7 @@ DeepSeek Harness slash commands that submit conversation messages and run packag
 ## Commands
 
 - `/deep-research <question>` runs the packaged Scope, Search, Fetch/Extract, Verify, and Synthesize workflow.
+- `/skillopt <skill goal or path, with examples/tasks>` creates a new skill against a no-skill baseline or optimizes an existing skill against its old version. It combines [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator)'s intent capture, realistic eval prompts, triggering frontmatter, and lean SKILL.md guidance with a bounded-edit, held-out [SkillOpt](https://github.com/microsoft/skillopt) gate. It writes the candidate only after a strictly higher, completely judged validation score; ties and incomplete evaluations leave the target unchanged.
 - `/batch <change>` creates a plan without starting workers. After approval, `/batch continue <approved plan>` assigns independent units to worktree-backed workers.
 - `/init`, `/review`, `/simplify`, `/security-review`, `/debug`, `/run`, and `/verify` run their packaged workflows in the current conversation.
 
