@@ -14,6 +14,10 @@ const defaultSetup = {
   skillPath: 'skills/example/SKILL.md',
   skill: '# Example skill',
   rubric: 'Exact answer receives 1; otherwise 0.',
+  objective: {
+    primary: { id: 'accuracy', description: 'Answer the requested task accurately.' },
+    protectedCriteria: [{ id: 'scope', description: 'Preserve the requested scope.' }],
+  },
   trainingTasks: [{ id: 'train', instruction: 'TRAINING TASK', expected: 'training answer' }],
   validationTasks: [{ id: 'validation', instruction: 'VALIDATION TASK', expected: 'validation answer' }],
 }
@@ -31,6 +35,10 @@ function labelOption(config, call) {
 export async function runWorkflow({
   baselineScore = 0,
   candidateScore = 1,
+  baselinePrimaryScore,
+  candidatePrimaryScore,
+  baselineProtectedScore,
+  candidateProtectedScore,
   failedJudge = '',
   setupOverrides = {},
   candidate = defaultCandidate,
@@ -55,6 +63,7 @@ export async function runWorkflow({
     return typeof scoreConfig === 'function' ? scoreConfig(call) : scoreConfig
   }
 
+  const preparedSetup = { ...defaultSetup, ...setupOverrides }
   const script = await compileWorkflow()
   const workflowArgs = {
     instruction: 'Optimize skills/example/SKILL.md with the supplied tasks',
@@ -84,13 +93,30 @@ export async function runWorkflow({
           if (failure instanceof Error) throw failure
           return null
         }
-        if (label === 'prepare') return { ...defaultSetup, ...setupOverrides }
+        if (label === 'prepare') return preparedSetup
         if (label.startsWith('rollout:')) return { answer: `answer for ${label}`, trajectory: 'read and answer' }
         if (label.startsWith('judge:')) {
           const scoreKind = label.startsWith('judge:baseline:') ? 'baseline'
             : label.startsWith('judge:candidate:') ? 'candidate' : ''
-          if (!scoreKind) return { score: 0, rationale: 'mock verdict' }
-          return { score: await score(scoreKind === 'baseline' ? baselineScore : candidateScore, call, scoreKind), rationale: 'mock verdict' }
+          if (!scoreKind) return {
+            score: 0,
+            primaryScore: 0,
+            protectedScores: preparedSetup.objective.protectedCriteria.map(criterion => ({ id: criterion.id, score: 0 })),
+            rationale: 'mock verdict',
+          }
+          const overallScore = await score(scoreKind === 'baseline' ? baselineScore : candidateScore, call, scoreKind)
+          const primaryScore = scoreKind === 'baseline'
+            ? baselinePrimaryScore ?? overallScore
+            : candidatePrimaryScore ?? overallScore
+          const protectedScore = scoreKind === 'baseline'
+            ? baselineProtectedScore ?? overallScore
+            : candidateProtectedScore ?? overallScore
+          return {
+            score: overallScore,
+            primaryScore,
+            protectedScores: preparedSetup.objective.protectedCriteria.map(criterion => ({ id: criterion.id, score: protectedScore })),
+            rationale: 'mock verdict',
+          }
         }
         if (kind === 'reflect' || kind === 'select') {
           return { edits: Array.from({ length: 6 }, (_, index) => ({

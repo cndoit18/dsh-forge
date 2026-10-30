@@ -39,7 +39,12 @@ function defaultResult(call, setup) {
   if (isRollout(label)) return { answer: 'answer for ' + label, trajectory: 'read and answer' }
   if (isJudge(label)) {
     const score = label.startsWith('judge:candidate:') ? 1 : 0
-    return { score, rationale: 'mock verdict' }
+    return {
+      score,
+      primaryScore: score,
+      protectedScores: setup.objective.protectedCriteria.map(criterion => ({ id: criterion.id, score })),
+      rationale: 'mock verdict',
+    }
   }
   if (isReflection(label)) {
     return { edits: Array.from({ length: 8 }, (_, index) => ({
@@ -60,6 +65,10 @@ function startWorkflow({ defer = () => false } = {}) {
     skillPath: 'skills/example/SKILL.md',
     skill: '# Example skill',
     rubric: 'Exact answer receives 1; otherwise 0.',
+    objective: {
+      primary: { id: 'accuracy', description: 'Answer the requested task accurately.' },
+      protectedCriteria: [{ id: 'scope', description: 'Preserve the requested scope.' }],
+    },
     trainingTasks,
     validationTasks,
   }
