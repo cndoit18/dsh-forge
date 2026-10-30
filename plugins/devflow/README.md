@@ -5,7 +5,7 @@ DeepSeek Harness slash commands that submit conversation messages and run packag
 ## Commands
 
 - `/deep-research <question>` runs the packaged Scope, Search, Fetch/Extract, Verify, and Synthesize workflow.
-- `/skillopt <skill goal or path, with examples/tasks>` creates a new skill against a no-skill baseline or optimizes an existing skill against its old version. It combines [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator)'s intent capture, realistic eval prompts, triggering frontmatter, and lean SKILL.md guidance with a bounded-edit, held-out [SkillOpt](https://github.com/microsoft/skillopt) gate. It writes the candidate only after a strictly higher, completely judged validation score; ties and incomplete evaluations leave the target unchanged.
+- `/skillopt <skill goal or path, with examples/tasks>` creates a new skill against a no-skill baseline or optimizes an existing skill against its old version. It combines [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator)'s intent capture, realistic eval prompts, triggering frontmatter, and lean SKILL.md guidance with a bounded-edit, held-out [SkillOpt](https://github.com/microsoft/skillopt) gate. It writes the candidate only after a completely judged validation run shows a strictly higher primary-objective score and no protected-criterion regression; ties and incomplete evaluations leave the target unchanged.
 - `/batch <change>` creates a plan without starting workers. After approval, `/batch continue <approved plan>` assigns independent units to worktree-backed workers.
 - `/init`, `/review`, `/simplify`, `/security-review`, `/debug`, `/run`, and `/verify` run their packaged workflows in the current conversation.
 
@@ -21,11 +21,11 @@ The tool resolves `workflowEngine` through `agentPresets.serviceFor(agent, 'work
 
 The loop is bounded by workflow constants rather than additional slash-command arguments:
 
-- The outer epoch limit bounds complete optimization passes.
+- The outer epoch limit bounds complete optimization passes and defaults to four epochs.
 - The per-epoch step limit bounds candidate attempts within one epoch.
-- The edit budget allows at most four valid `append`, `replace`, or `delete` edits per candidate. Empty or malformed edits are discarded before the budget is applied.
+- The edit budget allows one valid `append`, `replace`, or `delete` edit per candidate by default, so each gate measures one optimization direction. Empty or malformed edits are discarded before the budget is applied.
 
-Preparation supplies disjoint training and held-out validation tasks. Training results drive reflection and edits; validation tasks and expected outcomes are not included in the reflection or update prompts.
+Preparation derives exactly one primary optimization objective from the request and separate protected criteria that must not regress. It also supplies disjoint training and held-out validation tasks. Training results drive reflection and edits; validation tasks and expected outcomes are not included in the reflection or update prompts.
 
 ### Parallel execution boundaries
 
@@ -39,13 +39,13 @@ Evaluation agents do not edit files or external state. A failed rollout or judge
 
 ### Gate and rejected edits
 
-Each candidate is compared with the **latest accepted validation score**, not repeatedly with the original baseline. Acceptance requires complete baseline and candidate evaluations and a strictly higher candidate mean score. A tie, lower score, or incomplete evaluation cannot pass the gate. An accepted candidate and its score become the baseline for the next step.
+Each candidate is compared with the **latest accepted objective scores**, not repeatedly with the original baseline. Acceptance requires complete baseline and candidate evaluations, a strictly higher primary-objective mean score, and no regression in any protected-criterion mean score. The overall rubric score remains available in results but does not override the primary objective. A tie, lower primary score, protected regression, missing metric, or incomplete evaluation cannot pass the gate. An accepted candidate and its objective scores become the baseline for the next step.
 
 Each epoch has its own rejected-edit buffer. Edits from candidates rejected during that epoch are retained as negative feedback for later steps in the same epoch, helping reflection avoid repeating a failed proposal. The buffer is scoped to that epoch rather than carried into the next one.
 
 ### Step summaries and the final write
 
-The loop records a summary for each attempted step, including its position in the loop, gate outcome, scores, selected edits, and candidate summary. These summaries describe intermediate decisions even though those candidates are not written to disk.
+The loop records a summary for each attempted step, including its position in the loop, gate outcome, overall and objective scores, primary delta, protected-criterion deltas, concrete rejection reasons, selected edits, and candidate summary. These summaries describe intermediate decisions even though those candidates are not written to disk.
 
 After the loop, the workflow makes at most one write: the latest accepted candidate is written to the target `SKILL.md`, then read back to confirm exact equality. If no candidate passed the gate, there is no write. A failed final write is reported separately from gate rejection.
 

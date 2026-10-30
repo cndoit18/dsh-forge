@@ -9,7 +9,7 @@ test('SkillOpt applies a candidate only after strict held-out improvement', asyn
   assert.equal(value.candidateScore, 1)
   assert.equal(applied.length, 1)
   assert.deepEqual(phases, ['Prepare', 'Rollout', 'Rollout', 'Reflect', 'Select', 'Update', 'Gate', 'Apply'])
-  assert.equal(value.edits.length, 4)
+  assert.equal(value.edits.length, 1)
   for (const { label, prompt } of prompts.filter(entry => ['reflect', 'update'].includes(entry.label.split(':')[0]))) {
     assert.ok(!prompt.includes('VALIDATION TASK'), `${label} leaked held-out validation data`)
   }
@@ -48,9 +48,57 @@ test('SkillOpt rejects a candidate without required SKILL.md frontmatter before 
 })
 
 test('SkillOpt rejects a tied candidate and leaves the skill untouched', async () => {
-  const { value, applied } = await runWorkflow({ baselineScore: 0.5, candidateScore: 0.5 })
+  const { value, applied, prompts } = await runWorkflow({ baselineScore: 0.5, candidateScore: 0.5 })
   assert.equal(value.status, 'rejected')
+  assert.equal(prompts.filter(entry => entry.label.startsWith('update:')).length, 4)
+  assert.ok(value.rejectReasons.some(reason => reason.includes('accuracy')))
   assert.equal(applied.length, 0)
+})
+
+test('SkillOpt rejects a protected-criterion regression despite primary improvement', async () => {
+  const { value, applied } = await runWorkflow({
+    baselineScore: 0.4,
+    candidateScore: 0.9,
+    baselinePrimaryScore: 0.4,
+    candidatePrimaryScore: 0.9,
+    baselineProtectedScore: 1,
+    candidateProtectedScore: 0.5,
+  })
+  assert.equal(value.status, 'rejected')
+  assert.equal(value.candidatePrimaryScore, 0.9)
+  assert.equal(value.primaryDelta, 0.5)
+  assert.deepEqual(JSON.parse(JSON.stringify(value.protectedDeltas)), [{ id: 'scope', before: 1, after: 0.5, delta: -0.5 }])
+  assert.ok(value.rejectReasons.some(reason => reason.includes('scope')))
+  assert.equal(applied.length, 0)
+})
+
+test('SkillOpt gates on the primary objective instead of the mixed overall score', async () => {
+  const { value, applied } = await runWorkflow({
+    baselineScore: 0.8,
+    candidateScore: 0.6,
+    baselinePrimaryScore: 0.2,
+    candidatePrimaryScore: 0.6,
+    baselineProtectedScore: 1,
+    candidateProtectedScore: 1,
+  })
+  assert.equal(value.status, 'optimized')
+  assert.equal(value.baselineScore, 0.8)
+  assert.equal(value.candidateScore, 0.6)
+  assert.equal(value.candidatePrimaryScore, 0.6)
+  assert.equal(value.rejectReasons.length, 0)
+  assert.equal(applied.length, 1)
+})
+
+test('SkillOpt rejects duplicate objective criterion IDs before rollout', async () => {
+  const { value, applied, phases } = await runWorkflow({ setupOverrides: {
+    objective: {
+      primary: { id: 'same', description: 'Primary objective.' },
+      protectedCriteria: [{ id: 'same', description: 'Duplicate criterion.' }],
+    },
+  } })
+  assert.equal(value.status, 'invalid-input')
+  assert.equal(applied.length, 0)
+  assert.deepEqual(phases, ['Prepare'])
 })
 
 test('SkillOpt does not accept a candidate when any gate judge fails', async () => {

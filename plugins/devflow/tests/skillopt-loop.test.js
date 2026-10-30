@@ -12,6 +12,10 @@ const setup = {
   skillPath: 'skills/example/SKILL.md',
   skill: '# Original skill',
   rubric: 'Exact answer receives 1; otherwise 0.',
+  objective: {
+    primary: { id: 'accuracy', description: 'Answer the requested task accurately.' },
+    protectedCriteria: [{ id: 'scope', description: 'Preserve the requested scope.' }],
+  },
   trainingTasks: Array.from({ length: STEPS_PER_EPOCH }, (_, index) => ({
     id: `train-${index + 1}`, instruction: `TRAINING TASK ${index + 1}`, expected: `training answer ${index + 1}`,
   })),
@@ -52,13 +56,18 @@ async function runWorkflow({ baselineScore = 0.5, candidateScores = [], candidat
       calls.push({ label, prompt })
       if (label === 'prepare') return setup
       if (label.startsWith('rollout:')) return { answer: 'answer', trajectory: 'read and answer' }
-      if (label.startsWith('judge:baseline:')) return { score: baselineScore, rationale: 'baseline verdict' }
+      if (label.startsWith('judge:baseline:')) return {
+        score: baselineScore, primaryScore: baselineScore,
+        protectedScores: [{ id: 'scope', score: 1 }], rationale: 'baseline verdict',
+      }
       if (label.startsWith('judge:candidate:')) {
         const score = candidateScores[gateCount] ?? 0
         gateCount += 1
-        return { score, rationale: 'candidate verdict' }
+        return { score, primaryScore: score, protectedScores: [{ id: 'scope', score: 1 }], rationale: 'candidate verdict' }
       }
-      if (label.startsWith('judge:')) return { score: 0, rationale: 'training verdict' }
+      if (label.startsWith('judge:')) return {
+        score: 0, primaryScore: 0, protectedScores: [{ id: 'scope', score: 0 }], rationale: 'training verdict',
+      }
       if (label.startsWith('reflect')) {
         reflectionCount += 1
         if (skippedReflections.includes(reflectionCount)) return { edits: [] }
