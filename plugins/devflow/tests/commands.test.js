@@ -35,7 +35,7 @@ function createHarness() {
       jobs.push({ spec, job, hooks })
       return job.id
     } },
-    agentPresets: { serviceFor(subject, service) { assert.equal(subject, agent); assert.equal(service, 'workflowEngine'); return workflowEngine } },
+    workflowEngine,
     effect(contribute) { disposers.push(contribute()) },
     logger: { warn() {} },
     on(event, listener) { listeners.set(event, listener); disposers.push(() => listeners.delete(event)) },
@@ -45,22 +45,22 @@ function createHarness() {
 
 const execution = agent => ({ agent, signal: new AbortController().signal, callId: 'call-test', rootCallId: 'root-test' })
 
-test('submitting a command queues the visible user message before any workflow starts', async () => {
-  const { ctx, agent, commands, runs, jobs, messages } = createHarness()
+test('slash commands start workflows directly without queuing a user message', async () => {
+  const { ctx, agent, commands, runs, jobs, messages, events } = createHarness()
   apply(ctx)
   assert.equal(name, 'devflow')
-  for (const dependency of ['commands', 'agentPresets', 'tools', 'jobs']) assert.ok(inject.includes(dependency))
-  assert.ok(!inject.includes('workflowEngine'))
+  for (const dependency of ['commands', 'tools', 'jobs', 'workflowEngine']) assert.ok(inject.includes(dependency))
   const result = await commands.get('deep-research').handler({ agent, rawInput: ' Compare DSH Skills and Workflows' })
-  assert.deepEqual(result, { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
-  assert.equal(runs.length, 0)
-  assert.equal(jobs.length, 0)
-  assert.equal(messages.length, 1)
-  assert.equal(messages[0].role, 'user')
-  assert.equal(messages[0].source.kind, 'devflow')
-  assert.ok(messages[0].id)
-  assert.equal(messages[0].content[0].text, '/deep-research Compare DSH Skills and Workflows')
+  assert.deepEqual(result, { kind: 'success', text: '工作流已启动，任务编号：workflow-test-1。' })
+  assert.equal(runs.length, 1)
+  assert.equal(jobs.length, 1)
+  assert.equal(messages.length, 0)
+  assert.equal(runs[0].spec.parent, agent)
+  assert.equal(runs[0].spec.args.question, 'Compare DSH Skills and Workflows')
+  assert.equal(jobs[0].spec.toolCall, undefined)
+  assert.ok(events.some(event => event.type === 'tool-workflow/run-start' && event.data.name === 'deep-research'))
   assert.equal(commands.get('deep-research').recordInput, undefined)
+  await jobs[0].hooks.done
 })
 
 test('the model tool publishes an owned job immediately while its workflow is still pending', async () => {
@@ -125,31 +125,20 @@ test('command menu copy and input hints are Chinese', () => {
   }
 })
 
-test('skillopt copy and phase metadata describe iterative optimization', async () => {
-  const { ctx, agent, commands, tools, runs, jobs } = createHarness()
+test('skillopt is not registered or exposed through the model tool', async () => {
+  const { ctx, agent, commands, tools, runs } = createHarness()
   apply(ctx)
-  const description = '通过多轮示例回放、反思编辑和留出验证门创建或优化 Skill。'
-  assert.equal(commands.get('skillopt').description, description)
-  await tools.get('devflow').execute({ command: 'skillopt', input: 'target' }, execution(agent))
-  assert.deepEqual(runs[0].spec.meta, {
-    name: 'skillopt',
-    description,
-    phases: [
-      { title: '准备与拆分' },
-      { title: '基线回放' },
-      { title: '多轮回放与反思编辑' },
-      { title: '生成候选' },
-      { title: '留出验证' },
-      { title: '应用结果' },
-    ],
-  })
-  await jobs[0].hooks.done
+  assert.equal(commands.has('skillopt'), false)
+  assert.ok(!tools.get('devflow').parameters.properties.command.enum.includes('skillopt'))
+  await assert.rejects(tools.get('devflow').execute({ command: 'skillopt', input: 'target' }, execution(agent)), /Unknown DevFlow command: skillopt/)
+  assert.equal(runs.length, 0)
 })
 
-test('workflow comments do not expose literal Unicode escape sequences', async () => {
+test('workflow source uses readable Unicode in comments and printable strings', async () => {
   const source = await readFile(new URL('../workflows/deep-research.js', import.meta.url), 'utf8')
   const comments = source.split('\n').filter(line => line.trimStart().startsWith('//'))
   assert.ok(!comments.some(line => /\\u[0-9a-fA-F]{4}/.test(line)))
+  assert.ok(!/\\(?:xB7|u00B7|u2014|u2026|u2192|u2265|u2713|u2717)/i.test(source))
 })
 
 test('empty commands fail before starting a workflow', async () => {
@@ -162,23 +151,19 @@ test('empty commands fail before starting a workflow', async () => {
   assert.equal(runs.length, 0)
 })
 
-test('an aborted tool call cannot start a background job after loading its script', async () => {
-  const { ctx, agent, tools, jobs } = createHarness()
-  apply(ctx)
-  const abort = new AbortController()
-  abort.abort()
-  await assert.rejects(tools.get('devflow').execute({ command: 'deep-research', input: 'question' }, { ...execution(agent), signal: abort.signal }), { name: 'AbortError' })
-  assert.equal(jobs.length, 0)
-})
-
-test('a missing workflow engine rejects before starting a workflow', async () => {
-  const { ctx, agent, commands, messages } = createHarness()
-  ctx.agentPresets.serviceFor = () => undefined
-  apply(ctx)
-  const result = await commands.get('deep-research').handler({ agent, rawInput: 'question' })
-  assert.equal(result.kind, 'error')
-  assert.match(result.text, /Workflow support/)
-  assert.equal(messages.length, 0)
+test('cancellation during script loading prevents slash and tool jobs', async () => {
+  for (const kind of ['command', 'tool']) {
+    const { ctx, agent, commands, tools, runs, jobs } = createHarness()
+    apply(ctx)
+    const abort = new AbortController()
+    const pending = kind === 'command'
+      ? commands.get('deep-research').handler({ agent, rawInput: 'question', signal: abort.signal })
+      : tools.get('devflow').execute({ command: 'deep-research', input: 'question' }, { ...execution(agent), signal: abort.signal })
+    abort.abort()
+    await assert.rejects(pending, { name: 'AbortError' })
+    assert.equal(jobs.length, 0)
+    assert.equal(runs.length, 0)
+  }
 })
 
 test('workflow failure and cancellation become terminal job outcomes and dispose the run', async () => {
@@ -199,13 +184,37 @@ test('workflow failure and cancellation become terminal job outcomes and dispose
   }
 })
 
-test('all development commands queue messages and use their packaged workflows', async () => {
+test('dispose failure preserves the result and releases run state', async () => {
+  const { ctx, agent, tools, runs, jobs, events, listeners, workflowEngine } = createHarness()
+  const start = workflowEngine.start
+  workflowEngine.start = spec => {
+    const run = start(spec)
+    run.result = Promise.resolve({ stopReason: 'completed', value: 'done' })
+    run.dispose = async () => { throw new Error('dispose failed') }
+    return run
+  }
+  apply(ctx)
+  await tools.get('devflow').execute({ command: 'deep-research', input: 'question' }, execution(agent))
+  assert.deepEqual(await jobs[0].hooks.done, { status: 'completed', result: 'done' })
+  assert.ok(events.some(event => event.type === 'tool-workflow/run-end' && event.data.stopReason === 'completed'))
+  const eventCount = events.length
+  listeners.get('workflow/agent-start')({ id: 'run-test' }, { seq: 1, label: 'late', childId: 'child' })
+  assert.equal(events.length, eventCount)
+  listeners.get('workflow/log')({ id: 'run-test' }, 'late log')
+  assert.equal(jobs[0].job.output.length, 0)
+})
+
+test('all development commands start packaged workflows without queuing messages', async () => {
   const { ctx, agent, commands, tools, runs, jobs, messages } = createHarness()
   apply(ctx)
-  for (const command of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify', 'skillopt']) {
+  for (const command of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify']) {
     const input = ['init', 'review'].includes(command) ? '' : 'target'
-    assert.deepEqual(await commands.get(command).handler({ agent, rawInput: input }), { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
-    assert.equal(messages.at(-1).content[0].text, `/${command}${input ? ` ${input}` : ''}`)
+    const started = await commands.get(command).handler({ agent, rawInput: input })
+    assert.equal(started.kind, 'success')
+    assert.match(started.text, /^工作流已启动，任务编号：workflow-test-\d+。$/)
+    assert.equal(messages.length, 0)
+    assert.equal(runs.at(-1).spec.args.instruction, input)
+    await jobs.at(-1).hooks.done
     const result = await tools.get('devflow').execute({ command, input }, execution(agent))
     assert.equal(result.command, command)
     assert.equal(runs.at(-1).spec.args.instruction, input)
@@ -232,7 +241,7 @@ test('review defaults to low only when no recognized strength is supplied', asyn
 test('unloading removes the slash commands, model tool, and progress listeners', () => {
   const { ctx, commands, tools, listeners, disposers } = createHarness()
   apply(ctx)
-  assert.equal(commands.size, 10)
+  assert.equal(commands.size, 9)
   assert.equal(tools.size, 1)
   for (const dispose of disposers) dispose()
   assert.equal(commands.size, 0)

@@ -57,6 +57,7 @@ test('DevFlow projects its command as a Goal-style input without hiding the comm
   assert.equal(node.anchorSeq, 3.9)
   assert.equal(node.data.text, state.text)
   assert.equal(definition.match({ type: 'command/run', data: { name: 'goal' } }), null)
+  assert.equal(definition.match({ type: 'command/run', data: { name: 'skillopt' } }), null)
 })
 
 test('DevFlow suppresses only its duplicate ordinary followup bubble', async () => {
