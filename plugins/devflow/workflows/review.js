@@ -1,3 +1,9 @@
+export const meta = {
+  name: 'review',
+  description: '审查 diff、PR、分支或路径中的正确性缺陷与回归。',
+  input: { hint: '[审查强度] [--fix] [--comment] [目标]', required: false },
+}
+
 const input = args.instruction.trim()
 const requestedStrength = input.split(/\s+/, 1)[0]
 const strength = ['low', 'medium', 'high', 'max', 'ultra'].includes(requestedStrength) ? requestedStrength : 'low'

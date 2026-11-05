@@ -1,3 +1,16 @@
+export const meta = {
+  name: 'deep-research',
+  description: '并行搜索并提取证据，每条论断三票核验，最后汇总带引用的结论。',
+  input: { hint: '<研究问题>', required: true },
+  phases: [
+    { title: '范围界定' },
+    { title: '并行搜索' },
+    { title: '抓取与提取' },
+    { title: '三票核验' },
+    { title: '综合结论' },
+  ],
+}
+
 // deep-research: Scope → pipeline(Search → URL-dedup → Fetch+Extract) → 3-vote Verify → Synthesize
 // Ported from bughunter architecture. WebSearch/WebFetch instead of git/grep.
 // DSH passes the research question as args.question.

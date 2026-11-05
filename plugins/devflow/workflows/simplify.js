@@ -1,3 +1,9 @@
+export const meta = {
+  name: 'simplify',
+  description: '从复用、简化、效率和抽象层级审查代码，并实施合理修正。',
+  input: { hint: '[目标]', required: true },
+}
+
 phase('Review')
 const findings = await parallel(['Reuse', 'Simplification', 'Efficiency', 'Altitude'].map(angle => () => agent(`Review the current diff from the ${angle} angle. Report concrete file, line, summary and maintenance or performance cost; do not change files. Target: ${args.instruction}`)))
 if (findings.some(finding => finding === null)) throw new Error('Simplify review agents failed')

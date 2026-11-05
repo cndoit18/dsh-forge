@@ -1,0 +1,17 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+overrides:
+  '@deepseek-ai/dsh-llm': 0.2.1-rc.3
+  '@deepseek-ai/dsh-scope': 0.2.1-rc.3
+
+importers:
+
+  .:
+    devDependencies:
+      '@dshforge/workflow':
+        specifier: link:../workflow
+        version: link:../workflow

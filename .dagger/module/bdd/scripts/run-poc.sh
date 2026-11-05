@@ -65,6 +65,9 @@ set +e
 corepack yarn playwright test
 status=$?
 set -e
+if [ "$status" -ne 0 ]; then
+  redact_log
+fi
 if [ "${BDD_WAIT_AIMOCK:-0}" = "1" ]; then
   node -e "fetch('http://aimock:4010/__aimock/journal').then(async r => require('node:fs').writeFileSync('/bdd/.e2e/aimock-journal.json', await r.text())).catch(() => {})"
 fi

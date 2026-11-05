@@ -1,3 +1,4 @@
 .superdesign/tmp/
 node_modules/
 plugins/agent-plugins/lib/client.js
+.artifacts/
