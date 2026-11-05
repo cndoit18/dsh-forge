@@ -1,0 +1,6 @@
+# Mount the saved-workflow registry over the official PTC execution engine.
+- insert:
+    - id: workflow-ptc
+      name: '@deepseek-ai/dsh-workflow-ptc'
+    - id: saved-workflows
+      name: "@dshforge/workflow"

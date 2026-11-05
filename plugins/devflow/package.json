@@ -1,6 +1,6 @@
 {
   "name": "@dshforge/devflow",
-  "version": "0.1.12",
+  "version": "0.2.0",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -39,18 +39,10 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.5",
-    "@deepseek-ai/dsh-commands": ">=0.2.1-rc.3 <0.3.0",
-    "@deepseek-ai/dsh-jobs": ">=0.2.1-rc.3 <0.3.0",
-    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3 <0.3.0",
-    "@deepseek-ai/dsh-workflow": ">=0.2.1-rc.3 <0.3.0"
+    "@dshforge/workflow": ">=0.1.0 <0.2.0"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.5",
-    "@deepseek-ai/dsh-commands": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-jobs": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-workflow": "0.2.1-rc.3"
+    "@dshforge/workflow": "link:../workflow"
   },
   "license": "Apache-2.0"
 }

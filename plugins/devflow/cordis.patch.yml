@@ -1,6 +1,4 @@
-# Declare only the Workflow provider and DevFlow as components.
+# DevFlow contributes only its bundled workflow provider and Web client.
 - insert:
-    - id: workflow-ptc
-      name: '@deepseek-ai/dsh-workflow-ptc'
     - id: devflow
       name: "@dshforge/devflow"

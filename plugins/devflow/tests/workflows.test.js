@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { runInNewContext } from 'node:vm'
+import { parseWorkflowSource } from '@dshforge/workflow/source'
 
 const parallel = async thunks => Promise.all(thunks.map(async thunk => {
   try { return await thunk() } catch { return null }
@@ -18,8 +19,9 @@ const pipeline = async (items, ...stages) => Promise.all(items.map(async (item, 
 
 async function runWorkflow(name, options) {
   const source = await readFile(new URL(`../workflows/${name}`, import.meta.url), 'utf8')
+  const { script } = parseWorkflowSource(source, name)
   const phases = []
-  const result = await runInNewContext(`(async () => { ${source}
+  const result = await runInNewContext(`(async () => { ${script}
  })()`, {
     args: options.args ?? { instruction: 'target' },
     agent: options.agent,

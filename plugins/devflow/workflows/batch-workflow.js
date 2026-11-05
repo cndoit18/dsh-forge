@@ -1,3 +1,9 @@
+export const meta = {
+  name: 'batch',
+  description: '规划大型变更，经批准后让独立单元在隔离 worktree 中并行实施。',
+  input: { hint: '<大型变更>', required: true },
+}
+
 // Plan approval is required before creating independent worktrees.
 const continuing = args.instruction === 'continue' || args.instruction.startsWith('continue ')
 if (!continuing) {
