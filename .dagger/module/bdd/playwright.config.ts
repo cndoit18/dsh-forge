@@ -11,6 +11,10 @@ export default defineConfig({
   testDir,
   workers: 1,
   retries: 0,
-  reporter: 'list',
+  outputDir: '.e2e/test-results',
+  reporter: [
+    ['list'],
+    ['html', { outputFolder: '.e2e/playwright-report', open: 'never' }],
+  ],
   timeout: 120_000,
 });

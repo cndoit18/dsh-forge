@@ -1,3 +1,4 @@
+import { basename, resolve } from 'node:path';
 import type { Browser } from '@e2e-dev/web';
 import type { Agent } from 'e2e';
 import { openHost } from 'e2e/runner';
@@ -31,6 +32,20 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       await use(session);
     } finally {
       const failures = await session.close();
+      await testInfo.attach('e2e trace', { path: session.tracePath, contentType: 'text/markdown' });
+      // Artifact paths are relative to .e2e/results, two levels above the attempt directory.
+      const artifactsRoot = resolve(session.artifactsDir, '..', '..');
+      for (const result of session.report()?.run.results ?? []) {
+        for (const attempt of result.attempts) {
+          for (const artifact of attempt.artifacts) {
+            if (artifact.kind !== 'video' || artifact.path === undefined) continue;
+            await testInfo.attach(basename(artifact.path), {
+              path: resolve(artifactsRoot, artifact.path),
+              contentType: artifact.mediaType,
+            });
+          }
+        }
+      }
       if (failures.length > 0) throw new AggregateError(failures, 'e2e session close failed');
     }
   },

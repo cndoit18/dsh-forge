@@ -1,0 +1,82 @@
+name: BDD
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: bdd-preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  bdd:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Dagger CLI
+        if: github.event.action != 'closed'
+        run: |
+          curl -fsSL https://dl.dagger.io/dagger/install.sh | \
+            BIN_DIR=/usr/local/bin DAGGER_VERSION="$(jq -r '.engineVersion' dagger.json)" sh
+          dagger version
+
+      - name: Run BDD and export the report
+        if: github.event.action != 'closed'
+        run: |
+          dagger --progress=plain call bdd report \
+            --plugins ./plugins/agent-plugins \
+            --plugins ./plugins/workflow \
+            --plugins ./plugins/workflow-filesystem \
+            --plugins ./plugins/devflow \
+            --mock-data .dagger/module/bdd/testdata/mock-data \
+            --ai=true \
+            --allow-failure \
+            --output .artifacts/bdd
+
+      - name: Publish BDD report preview
+        if: always() && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('.artifacts/bdd/playwright-report/index.html') != ''
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: .artifacts/bdd/playwright-report
+          preview-branch: gh-pages
+          umbrella-dir: bdd-preview
+          action: deploy
+          wait-for-pages-deployment: true
+          qr-code: false
+
+      - name: Remove BDD report preview
+        if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          preview-branch: gh-pages
+          umbrella-dir: bdd-preview
+          action: remove
+          wait-for-pages-deployment: true
+          qr-code: false
+
+      - name: Check BDD result
+        if: always() && github.event.action != 'closed'
+        shell: bash
+        run: |
+          status_file=.artifacts/bdd/test-status.txt
+          if [[ ! -f "$status_file" ]]; then
+            echo "BDD did not produce a test status; inspect the Dagger step output."
+            exit 1
+          fi
+          status=$(<"$status_file")
+          if [[ "$status" != "0" ]]; then
+            echo "BDD failed with exit code $status. Open the report preview for videos and traces."
+            exit "$status"
+          fi
