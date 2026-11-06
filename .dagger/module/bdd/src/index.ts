@@ -1,29 +1,47 @@
-import { argument, dag, Directory, func, object, Secret } from "@dagger.io/dagger"
+import { argument, dag, Directory, func, object, ReturnType, Secret } from "@dagger.io/dagger"
+
+const sourceIgnore = [
+  ".dagger",
+  "DESIGN.md",
+  "**/node_modules",
+  "**/lib",
+  "**/*.tsbuildinfo",
+  "**/apps/web/dist",
+  "**/.artifacts",
+  "**/.dsh-build",
+  "**/.dsh-report",
+  ".env",
+  "**/.env",
+]
 
 @object()
 export class Bdd {
+  /**
+   * Run BDD with video and export the HTML report and test status.
+   * The report is playwright-report/index.html in the returned directory.
+   */
+  @func()
+  async report(
+    @argument({ defaultPath: "/", ignore: sourceIgnore })
+    source: Directory,
+    plugins: Directory[] = [],
+    mockData?: Directory,
+    ai = false,
+    modelId = "gpt-4o-mini",
+    modelBaseUrl?: string,
+    modelApiKey?: Secret,
+    allowFailure = false,
+  ): Promise<Directory> {
+    return this.run(source, plugins, mockData, ai, modelId, modelBaseUrl, modelApiKey, true, allowFailure)
+  }
+
   /**
    * Run BDD scenarios against DSH and e2e with an OpenAI-compatible endpoint.
    * AI scenarios are skipped by default; ai=true enables OpenAI-compatible execution.
    */
   @func()
   async run(
-    @argument({
-      defaultPath: "/",
-      ignore: [
-        ".dagger",
-        "DESIGN.md",
-        "**/node_modules",
-        "**/lib",
-        "**/*.tsbuildinfo",
-        "**/apps/web/dist",
-        "**/.artifacts",
-        "**/.dsh-build",
-        "**/.dsh-report",
-        ".env",
-        "**/.env",
-      ],
-    })
+    @argument({ defaultPath: "/", ignore: sourceIgnore })
     source: Directory,
     plugins: Directory[] = [],
     mockData?: Directory,
@@ -32,6 +50,7 @@ export class Bdd {
     modelBaseUrl?: string,
     modelApiKey?: Secret,
     video = false,
+    allowFailure = false,
   ): Promise<Directory> {
     const useAimock = modelBaseUrl === undefined
     const modelUrl = modelBaseUrl ?? "http://aimock:4010/v1"
@@ -77,7 +96,9 @@ export class Bdd {
 
     const completed = runner
       .withExec(["mkdir", "-p", "/bdd/.e2e"])
-      .withExec(["sh", "/bdd/scripts/run-poc.sh", ...launchArgs])
+      .withExec(["sh", "/bdd/scripts/run-poc.sh", ...launchArgs], {
+        expect: allowFailure ? ReturnType.Any : ReturnType.Success,
+      })
     const output = await completed.stdout()
     return completed
       .directory("/bdd/.e2e")

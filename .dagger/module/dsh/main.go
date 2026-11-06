@@ -167,9 +167,9 @@ func sanitizePackageDir(name string) string {
 	return strings.NewReplacer("@", "", "/", "__").Replace(name)
 }
 
-// buildPluginContainer builds one plugin package when its manifest declares a
-// build script (packages shipping plain artifacts pass through unchanged) and
-// prints the package name; the same pipeline yields the artifacts directory.
+// buildPluginContainer installs one plugin package's dependencies, builds it
+// when its manifest declares a build script, and prints the package name; the
+// same pipeline yields the artifacts directory.
 // Build output goes to stderr so stdout carries only the name; set -e fails
 // the container on a broken build instead of falling through to the name
 // print (the if condition stays exempt).
@@ -182,9 +182,9 @@ func (m *Dsh) buildPluginContainer(plugin *dagger.Directory) *dagger.Container {
 		WithWorkdir("/plugin").
 		WithExec([]string{"sh", "-c", `
 set -e
+corepack enable >&2
+pnpm install >&2
 if node -e "const s = require('./package.json').scripts; process.exit(s && s.build ? 0 : 1)"; then
-  corepack enable
-  pnpm install
   pnpm run build
 fi >&2
 node -p "require('./package.json').name"
