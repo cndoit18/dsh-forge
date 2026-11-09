@@ -4,11 +4,12 @@ import test from 'node:test'
 
 test('the aggregate installs and mounts every workflow package exactly once', async () => {
   const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
-  assert.deepEqual(Object.keys(manifest.dependencies).sort(), [
-    '@dshforge/devflow',
-    '@dshforge/workflow',
-    '@dshforge/workflow-filesystem',
-  ])
+  const expectedDependencies = {}
+  for (const name of ['devflow', 'workflow', 'workflow-filesystem']) {
+    const dependency = JSON.parse(await readFile(new URL(`../../${name}/package.json`, import.meta.url), 'utf8'))
+    expectedDependencies[dependency.name] = dependency.version
+  }
+  assert.deepEqual(manifest.dependencies, expectedDependencies)
   const patch = await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
   const rows = [...patch.matchAll(/- id: ([\w-]+)\n\s+name: ['"]?([^'"\n]+)['"]?/g)].map(([, id, name]) => ({ id, name }))
   assert.deepEqual(rows, [
