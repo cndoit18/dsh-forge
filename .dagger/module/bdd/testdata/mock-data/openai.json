@@ -29,7 +29,8 @@
     {
       "match": {
         "toolName": "run_code",
-        "model": "gpt-4o-mini"
+        "model": "gpt-4o-mini",
+        "systemMessage": "When you have your final answer, you MUST report it by calling the `structured_output` tool"
       },
       "response": {
         "toolCalls": [

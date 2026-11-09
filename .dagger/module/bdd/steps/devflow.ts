@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { expect } from 'e2e';
-import { Then, When } from './fixtures.js';
+import { Then, When, type BddE2E } from './fixtures.js';
 
 const devflowCommands = ['init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify', 'batch', 'deep-research'];
 const builtInMenuItems = ['File', 'Goal', 'Plan', 'Feedback', 'Compact', 'Permission', 'Model', 'Export'];
@@ -31,38 +31,46 @@ async function commandRows(browser: any): Promise<CommandRow[]> {
   }))`);
 }
 
-async function executeHostCommand(browser: any, line: string, options: { agentPreset?: string; cwd?: string } = {}) {
+async function executeUiCommand(e2e: BddE2E, name: string, line: string, options: { agentPreset?: string; cwd?: string } = {}) {
+  const browser = e2e.fixtures.browser;
   const { agentPreset, cwd } = options;
-  const request = { ...(agentPreset === undefined ? {} : { agentPreset }), ...(cwd === undefined ? {} : { cwd }) };
+  const workspacePath = cwd ?? '/workspace';
   await browser.evaluate(`(async () => {
+    const workspaceResponse = await fetch('/api/workspace/create', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: 'bdd-devflow-workspace', method: 'workspace/create', payload: { args: { request: { path: ${JSON.stringify(workspacePath)} } } } }),
+    }).then(response => response.json());
+    const workspaceId = workspaceResponse.result?.value?.workspace?.workspaceId;
+    if (!workspaceId) throw new Error('workspace/create failed: ' + JSON.stringify(workspaceResponse));
+    const request = { workspaceId, ${agentPreset === undefined ? '' : `agentPreset: ${JSON.stringify(agentPreset)},`} };
     const created = await fetch('/api/session/create', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId: 'bdd-devflow-session', method: 'session/create', payload: { args: { request: ${JSON.stringify(request)} } } }),
+      body: JSON.stringify({ type: 'client-request', rpcId: 'bdd-devflow-session', method: 'session/create', payload: { args: { request } } }),
     }).then(response => response.json());
     const sessionId = created.result?.value?.sessionId;
     if (!sessionId) throw new Error('session/create failed: ' + JSON.stringify(created));
     ${agentPreset ? `if (created.result.value.agentPreset !== ${JSON.stringify(agentPreset)}) throw new Error('session/create did not select the requested preset');` : ''}
+    localStorage.setItem('dsh.sessions.current', JSON.stringify({ sessionId }));
     sessionStorage.setItem('devflow.bdd.session', sessionId);
     sessionStorage.setItem('devflow.bdd.line', ${JSON.stringify(line)});
-    const permission = await fetch('/api/commands/execute', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        type: 'client-request', rpcId: 'bdd-devflow-permission', method: 'commands/execute',
-        payload: { args: { agentId: sessionId, line: '/permission danger-full-access', submittedAttachments: [] } },
-      }),
-    }).then(response => response.json());
-    if (permission.result?.value?.result?.kind !== 'success') throw new Error('BDD permission setup failed: ' + JSON.stringify(permission));
-    const executed = await fetch('/api/commands/execute', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        type: 'client-request', rpcId: 'bdd-devflow-command', method: 'commands/execute',
-        payload: { args: { agentId: sessionId, line: ${JSON.stringify(line)}, submittedAttachments: [] } },
-      }),
-    }).then(response => response.json());
-    const result = executed.result?.value?.result;
-    if (!result) throw new Error('commands/execute failed: ' + JSON.stringify(executed));
-    sessionStorage.setItem('devflow.bdd.result', JSON.stringify(result));
   })()`);
+  await e2e.fixtures.app.open('/');
+  await grantDangerFullAccess(browser);
+  const editor = e2e.fixtures.screen.getByRole('textbox').last();
+  await editor.tap();
+  await editor.fill(line);
+  const send = e2e.fixtures.screen.getByRole('button', { name: /^(Send message|发送消息)$/ }).last();
+  await expect(send).toBeEnabled();
+  await send.tap();
+  await expect(e2e.fixtures.screen.getByText(line, { exact: true }).last()).toBeVisible();
+  try {
+    await expect.poll(async () => (await uiCommandEvidence(browser, name)).ok).toBe(true);
+  } catch (error) {
+    console.error('BDD UI command failed:', name, JSON.stringify(await uiCommandEvidence(browser, name)));
+    throw error;
+  }
+  const evidence = await uiCommandEvidence(browser, name);
+  await browser.evaluate(`sessionStorage.setItem('devflow.bdd.result', ${JSON.stringify(JSON.stringify(evidence.commandDone))})`);
 }
 
 async function commandResult(browser: any) {
@@ -149,10 +157,29 @@ Then('the menu contains all nine DevFlow commands', async ({ e2e }) => {
   }
   for (const command of devflowCommands) {
     assert.ok(commandNames.includes(command), 'missing exact /' + command + '; commands: ' + commandNames.join(' | '));
+    await expect(e2e.fixtures.screen.getByRole('option', { name: new RegExp('^' + command + '( |$)') })).toBeVisible();
   }
+  await e2e.fixtures.browser.evaluate(`(() => {
+    const button = [...document.querySelectorAll('button[id^="dsh-slash-option-command-"]')].find(candidate => candidate.firstElementChild?.textContent === 'deep-research');
+    const viewport = button?.closest('[role="listbox"]');
+    if (!button || !viewport) return;
+    const optionRect = button.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+    viewport.scrollTop += optionRect.top + optionRect.height / 2 - (viewportRect.top + viewportRect.height / 2);
+  })()`);
+  await expect.poll(async () => e2e.fixtures.browser.evaluate(`(() => {
+    const button = [...document.querySelectorAll('button[id^="dsh-slash-option-command-"]')].find(candidate => candidate.firstElementChild?.textContent === 'deep-research');
+    const viewport = button?.closest('[role="listbox"]');
+    if (!button || !viewport) return false;
+    const optionRect = button.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+    return optionRect.top >= viewportRect.top && optionRect.bottom <= viewportRect.bottom;
+  })()`)).toBe(true);
+  await e2e.fixtures.browser.evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  await expect(e2e.fixtures.screen.getByRole('option', { name: /^deep-research( |$)/ })).toBeVisible();
 });
 When('I run the deep research command with a BDD question', async ({ e2e }) => {
-  await executeHostCommand(e2e.fixtures.browser, '/deep-research BDD scoped workflow');
+  await executeUiCommand(e2e, 'deep-research', '/deep-research BDD scoped workflow');
 });
 
 async function assertDirectWorkflow(browser: any, expectedOutput: string[]) {
@@ -193,7 +220,7 @@ const result = await agent('Answer this BDD filesystem workflow question: ' + ar
 if (result === null) throw new Error('Project agent failed')
 return result
 `);
-  await executeHostCommand(e2e.fixtures.browser, '/bdd-echo BDD workflow', { cwd: project });
+  await executeUiCommand(e2e, 'bdd-echo', '/bdd-echo BDD workflow', { cwd: project });
 });
 
 Then('the project filesystem workflow returns its result without model-mediated dispatch', async ({ e2e }) => {
@@ -201,7 +228,7 @@ Then('the project filesystem workflow returns its result without model-mediated 
 });
 
 When('I run deep research with the ptc preset', async ({ e2e }) => {
-  await executeHostCommand(e2e.fixtures.browser, '/deep-research BDD scoped workflow', { agentPreset: 'ptc' });
+  await executeUiCommand(e2e, 'deep-research', '/deep-research BDD scoped workflow', { agentPreset: 'ptc' });
 });
 
 async function uiCommandEvidence(browser: any, name: string) {
@@ -308,7 +335,7 @@ Then('all nine DevFlow commands complete through the Web UI', async ({ e2e }) =>
 });
 
 When('I run the batch command without an approved plan', async ({ e2e }) => {
-  await executeHostCommand(e2e.fixtures.browser, '/batch BDD isolated units');
+  await executeUiCommand(e2e, 'batch', '/batch BDD isolated units');
 });
 
 Then('batch returns an unapproved plan without starting worktree workers', async ({ e2e }) => {
