@@ -63,9 +63,7 @@ always records video and returns the report, traces, and `test-status.txt`:
 ```sh
 dagger --progress=plain call bdd report \
   --plugins ./plugins/agent-plugins \
-  --plugins ./plugins/workflow \
-  --plugins ./plugins/workflow-filesystem \
-  --plugins ./plugins/devflow \
+  --plugins ./plugins/workflows-bundle \
   --mock-data .dagger/module/bdd/testdata/mock-data \
   --ai=true \
   --output .artifacts/bdd

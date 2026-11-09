@@ -53,7 +53,7 @@ function summaryOf(candidate) {
 }
 
 /**
- * Merge saved-workflow providers by name. Lower ranks win; registration order
+ * Merge workflow providers by name. Lower ranks win; registration order
  * breaks ties, matching the Skill registry's project-to-bundled precedence.
  */
 function abortError(signal) {
