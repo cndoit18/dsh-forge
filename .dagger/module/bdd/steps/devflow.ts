@@ -5,26 +5,30 @@ import { Then, When } from './fixtures.js';
 
 const devflowCommands = ['init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify', 'batch', 'deep-research'];
 const builtInMenuItems = ['File', 'Goal', 'Plan', 'Feedback', 'Compact', 'Permission', 'Model', 'Export'];
+const installedPluginComponents = [
+  { name: '@dshforge/agent-plugins', title: '@dshforge/agent-plugins', rows: [{ id: 'agent-plugins', moduleName: '@dshforge/agent-plugins' }] },
+  {
+    name: '@dshforge/workflows-bundle',
+    title: '@dshforge/workflows-bundle',
+    rows: [
+      { id: 'workflow-ptc', moduleName: '@deepseek-ai/dsh-workflow-ptc' },
+      { id: 'workflows', moduleName: '@dshforge/workflow' },
+      { id: 'workflow-filesystem', moduleName: '@dshforge/workflow-filesystem' },
+      { id: 'devflow', moduleName: '@dshforge/devflow' },
+    ],
+  },
+];
 
 type CommandRow = {
   command: string;
   text: string;
-  icon: string;
-  label: string;
-  decorated: boolean;
 };
 
 async function commandRows(browser: any): Promise<CommandRow[]> {
-  return browser.evaluate(`[...document.querySelectorAll('button[id^="dsh-slash-option-command-"]')].map(button => {
-    const alias = button.querySelector(':scope > span:first-child');
-    return {
-      command: alias?.textContent ?? '',
-      text: button.textContent ?? '',
-      icon: getComputedStyle(button, '::before').maskImage,
-      label: alias === null ? '' : getComputedStyle(alias, '::before').content,
-      decorated: button.hasAttribute('data-devflow-command'),
-    };
-  })`);
+  return browser.evaluate(`[...document.querySelectorAll('button[id^="dsh-slash-option-command-"]')].map(button => ({
+    command: button.querySelector(':scope > span:first-child')?.textContent ?? '',
+    text: button.textContent ?? '',
+  }))`);
 }
 
 async function executeHostCommand(browser: any, line: string, options: { agentPreset?: string; cwd?: string } = {}) {
@@ -105,6 +109,37 @@ When('I inspect the DevFlow command menu', async ({ e2e }) => {
   await expect.poll(async () => (await commandRows(e2e.fixtures.browser)).length).toBeGreaterThan(0);
 });
 
+When('I open the Plugins panel', async ({ e2e }) => {
+  await e2e.fixtures.screen.getByRole('navigation', { name: 'Global panels' }).getByRole('button', { name: 'Plugins', exact: true }).tap();
+});
+
+Then('each installed plugin shows its declared running components', async ({ e2e }) => {
+  const screen = e2e.fixtures.screen;
+  await expect.poll(async () => e2e.fixtures.browser.evaluate(`[...document.querySelectorAll('[data-plugin-group="bundles"] [data-plugin-package]')].map(card => card.getAttribute('data-plugin-package')).sort()`)).toEqual(installedPluginComponents.map(plugin => plugin.name).sort());
+
+  for (const plugin of installedPluginComponents) {
+    const openLabel = await e2e.fixtures.browser.evaluate(`document.querySelector('[data-plugin-package="${plugin.name}"] button[aria-label]')?.getAttribute('aria-label')`);
+    assert.ok(openLabel, `${plugin.name} has no detail button`);
+    assert.ok(openLabel === `View ${plugin.title}` || openLabel === `查看 ${plugin.title}`, `${plugin.name} has the wrong title: ${openLabel}`);
+    await screen.getByRole('button', { name: openLabel, exact: true }).tap();
+    await expect.poll(async () => e2e.fixtures.browser.evaluate(`document.querySelector('[data-plugin-detail="${plugin.name}"]') !== null`)).toBe(true);
+    await expect.poll(async () => e2e.fixtures.browser.evaluate(`document.querySelectorAll('[data-plugin-detail="${plugin.name}"] [data-plugin-row]').length`)).toBe(plugin.rows.length);
+    const rows = await e2e.fixtures.browser.evaluate(`[...document.querySelectorAll('[data-plugin-detail="${plugin.name}"] [data-plugin-row]')].map(row => ({
+      id: (row.getAttribute('data-plugin-row') ?? '').replace(/^include:/, ''),
+      text: row.textContent ?? '',
+      state: row.getAttribute('data-state'),
+    }))`) as Array<{ id: string; text: string; state: string | null }>;
+    assert.deepEqual(rows.map(row => row.id), plugin.rows.map(row => row.id));
+    for (const [index, row] of rows.entries()) {
+      assert.ok(row.text.includes(plugin.rows[index].moduleName), `${plugin.name}#${row.id} has the wrong module: ${row.text}`);
+      assert.equal(row.state, null, `${plugin.name}#${row.id} is not running: ${row.text}`);
+      assert.match(row.text, /Running|运行中/);
+    }
+    await screen.getByRole('button', { name: /^(Back to plugins|返回插件)$/ }).tap();
+    await expect.poll(async () => e2e.fixtures.browser.evaluate(`document.querySelector('[data-plugin-detail="${plugin.name}"]') === null`)).toBe(true);
+  }
+});
+
 Then('the menu contains all nine DevFlow commands', async ({ e2e }) => {
   const rows = await commandRows(e2e.fixtures.browser);
   const commandNames = rows.map(row => row.command);
@@ -116,43 +151,6 @@ Then('the menu contains all nine DevFlow commands', async ({ e2e }) => {
     assert.ok(commandNames.includes(command), 'missing exact /' + command + '; commands: ' + commandNames.join(' | '));
   }
 });
-
-Then('each DevFlow command has a localized label and its own icon', async ({ e2e }) => {
-  await expect.poll(async () => (await commandRows(e2e.fixtures.browser)).filter(row => row.decorated).length).toBe(devflowCommands.length);
-  const rows = (await commandRows(e2e.fixtures.browser)).filter(row => row.decorated);
-  assert.deepEqual(rows.map(row => row.command).sort(), [...devflowCommands].sort());
-  const language = await e2e.fixtures.browser.evaluate('document.documentElement.lang');
-  const expectedLabels = language === 'zh-CN'
-    ? { batch: '"批量 "', debug: '"调试 "', 'deep-research': '"深度研究 "', init: '"初始化 "', review: '"审查 "', run: '"运行 "', 'security-review': '"安全审查 "', simplify: '"简化 "', verify: '"验证 "' }
-    : { batch: '"Batch "', debug: '"Debug "', 'deep-research': '"Deep research "', init: '"Init "', review: '"Review "', run: '"Run "', 'security-review': '"Security review "', simplify: '"Simplify "', verify: '"Verify "' };
-  for (const row of rows) {
-    assert.equal(row.label, expectedLabels[row.command as keyof typeof expectedLabels], 'wrong localized label for /' + row.command);
-    assert.ok(row.icon.includes('data:image/svg+xml'), 'missing icon for /' + row.command);
-  }
-  assert.equal(new Set(rows.map(row => row.icon)).size, devflowCommands.length, 'command icons must be distinct');
-});
-
-When('I filter the DevFlow command menu with {string}', async ({ e2e }, query: string) => {
-  await expect.poll(async () => (await commandRows(e2e.fixtures.browser)).filter(row => row.decorated).length).toBe(devflowCommands.length);
-  const rows = (await commandRows(e2e.fixtures.browser)).filter(row => row.decorated);
-  const icons = Object.fromEntries(rows.map(row => [row.command, row.icon]));
-  await e2e.fixtures.browser.evaluate(`sessionStorage.setItem('devflow.bdd.menuIcons', ${JSON.stringify(JSON.stringify(icons))})`);
-  await e2e.fixtures.screen.getByRole('textbox', { name: /\/ (commands|调用指令)/ }).fill('/' + query);
-});
-
-Then('the filtered DevFlow commands keep their icons', async ({ e2e }) => {
-  const expectedCommands = ['simplify', 'verify'];
-  await expect.poll(async () => {
-    const names = (await commandRows(e2e.fixtures.browser)).filter(row => row.decorated).map(row => row.command).sort();
-    return JSON.stringify(names) === JSON.stringify(expectedCommands);
-  }).toBe(true);
-  const rows = (await commandRows(e2e.fixtures.browser)).filter(row => row.decorated);
-  const originalIcons = JSON.parse(await e2e.fixtures.browser.evaluate("sessionStorage.getItem('devflow.bdd.menuIcons')") as string);
-  for (const row of rows) {
-    assert.equal(row.icon, originalIcons[row.command], '/' + row.command + ' received a different command icon after filtering');
-  }
-});
-
 When('I run the deep research command with a BDD question', async ({ e2e }) => {
   await executeHostCommand(e2e.fixtures.browser, '/deep-research BDD scoped workflow');
 });
@@ -169,7 +167,7 @@ async function assertDirectWorkflow(browser: any, expectedOutput: string[]) {
   const submitted = await submittedMessage(browser, jobId);
   assert.equal(submitted.found, false, 'slash command must not be queued as a user message');
   assert.ok(!submitted.tools.includes('devflow'), 'slash command must not call the devflow model tool');
-  assert.ok(!submitted.tools.includes('run_workflow'), 'slash command must not call the saved workflow model tool');
+  assert.ok(!submitted.tools.includes('run_workflow'), 'slash command must not call the workflow model tool');
   for (const fragment of expectedOutput) {
     assert.ok(submitted.completionText.includes(fragment), 'missing workflow result ' + JSON.stringify(fragment) + '; notice: ' + submitted.completionText);
   }
@@ -195,7 +193,7 @@ const result = await agent('Answer this BDD filesystem workflow question: ' + ar
 if (result === null) throw new Error('Project agent failed')
 return result
 `);
-  await executeHostCommand(e2e.fixtures.browser, '/bdd-echo BDD saved workflow', { cwd: project });
+  await executeHostCommand(e2e.fixtures.browser, '/bdd-echo BDD workflow', { cwd: project });
 });
 
 Then('the project filesystem workflow returns its result without model-mediated dispatch', async ({ e2e }) => {

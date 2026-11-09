@@ -3,15 +3,13 @@ Feature: DevFlow commands and workflows
   Background:
     Given the authenticated Web GUI is open
 
+  Scenario: Installed plugin details match their bundle declarations
+    When I open the Plugins panel
+    Then each installed plugin shows its declared running components
+
   Scenario: DevFlow exposes all nine host commands
     When I inspect the DevFlow command menu
     Then the menu contains all nine DevFlow commands
-    And each DevFlow command has a localized label and its own icon
-
-  Scenario: DevFlow icons follow commands after menu filtering
-    When I inspect the DevFlow command menu
-    And I filter the DevFlow command menu with "f"
-    Then the filtered DevFlow commands keep their icons
 
   Scenario: Deep research completes directly without model-mediated dispatch
     When I run the deep research command with a BDD question

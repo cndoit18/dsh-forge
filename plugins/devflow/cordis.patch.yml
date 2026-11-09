@@ -1,4 +1,4 @@
-# DevFlow contributes only its bundled workflow provider and Web client.
+# DevFlow contributes only its bundled workflow provider.
 - insert:
     - id: devflow
       name: "@dshforge/devflow"

@@ -122,12 +122,12 @@ export function apply(ctx) {
 
   ctx.effect(() => ctx.tools.register({
     name: 'run_workflow',
-    description: 'Start a saved workflow by its exact name when the user explicitly requests that workflow. Saved workflows come from the active project, user directories, or installed bundles. Returns a background job ID; use job_output to collect it and job_kill to cancel it. Do not use this for an ad-hoc JavaScript script; use the workflow tool instead.',
+    description: 'Start a workflow by its exact name when the user explicitly requests it. Workflows come from the active project, user directories, or installed bundles. Returns a background job ID; use job_output to collect it and job_kill to cancel it. Do not use this for an ad-hoc JavaScript script; use the workflow tool instead.',
     parameters: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'Exact saved workflow name without the leading slash.' },
-        input: { type: 'string', description: 'Input passed to the saved workflow. Its definition controls whether this may be empty.' },
+        name: { type: 'string', description: 'Exact workflow name without the leading slash.' },
+        input: { type: 'string', description: 'Input passed to the workflow. Its definition controls whether this may be empty.' },
       },
       required: ['name', 'input'],
       additionalProperties: false,
@@ -151,7 +151,7 @@ export function apply(ctx) {
       toolCall: { callId: exec.callId, rootCallId: exec.rootCallId },
       signal: exec.signal,
     }),
-  }), 'dsh-workflow: saved workflow tool')
+  }), 'dsh-workflow: workflow tool')
 
   ctx.effect(() => () => {
     disposed = true

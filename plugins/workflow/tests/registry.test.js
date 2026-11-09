@@ -85,7 +85,7 @@ test('agent commands refresh from the catalog without replacing external command
   assert.equal(command('alpha'), undefined)
 })
 
-test('generic saved workflows receive input and reject unknown names before creating jobs', async () => {
+test('generic workflows receive input and reject unknown names before creating jobs', async () => {
   const { ctx, agent, tools, command, runs, jobs, activateAgent } = createHarness()
   applyPlugins(ctx)
   registerWorkflow(ctx, { input: { hint: '<目标>', required: true } })
@@ -98,7 +98,7 @@ test('generic saved workflows receive input and reject unknown names before crea
   assert.equal(started.name, 'example')
   assert.deepEqual(runs[0].spec.args, { input: 'target' })
   await jobs[0].hooks.done
-  await assert.rejects(tools.get('run_workflow').execute({ name: 'missing', input: '' }, execution(agent)), /Unknown saved workflow/)
+  await assert.rejects(tools.get('run_workflow').execute({ name: 'missing', input: '' }, execution(agent)), /Unknown workflow/)
   assert.equal(jobs.length, 1)
 })
 

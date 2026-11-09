@@ -94,7 +94,7 @@ test('command menu copy and input hints remain Chinese', async () => {
 test('unknown names are not registered or exposed as workflows', async () => {
   const { agent, command, tools, runs } = await setup()
   assert.equal(command('skillopt'), undefined)
-  await assert.rejects(tools.get('run_workflow').execute({ name: 'skillopt', input: 'target' }, execution(agent)), /Unknown saved workflow: skillopt/)
+  await assert.rejects(tools.get('run_workflow').execute({ name: 'skillopt', input: 'target' }, execution(agent)), /Unknown workflow: skillopt/)
   assert.equal(runs.length, 0)
 })
 
@@ -191,7 +191,7 @@ test('review defaults to low only when no recognized strength is supplied', asyn
     return prompts[0]
   }
   assert.match(await run(''), /Review strength: low\./)
-  assert.match(await run('src/client.js'), /Review strength: low\./)
+  assert.match(await run('src/index.js'), /Review strength: low\./)
   assert.match(await run('max'), /Review strength: max\./)
 })
 
