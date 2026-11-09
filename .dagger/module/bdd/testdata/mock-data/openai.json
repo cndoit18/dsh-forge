@@ -28,6 +28,47 @@
     },
     {
       "match": {
+        "toolName": "run_code",
+        "model": "gpt-4o-mini",
+        "systemMessage": "When you have your final answer, you MUST report it by calling the `structured_output` tool"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "run_code",
+            "arguments": {
+              "code": "return await tools.structured_output({ angles: [{ label: 'BDD', query: 'BDD deterministic research', rationale: 'Exercise the workflow without external web access.' }], results: [] })",
+              "description": "Capture deterministic BDD research output"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolName": "structured_output",
+        "model": "gpt-4o-mini"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "structured_output",
+            "arguments": {
+              "angles": [
+                {
+                  "label": "BDD",
+                  "query": "BDD deterministic research",
+                  "rationale": "Exercise the workflow without external web access."
+                }
+              ],
+              "results": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
         "model": "gpt-4o-mini"
       },
       "response": {
