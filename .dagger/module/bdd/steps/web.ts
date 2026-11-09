@@ -6,10 +6,10 @@ Given('the authenticated Web GUI is open', async ({ e2e }) => {
   if (!token) throw new Error('DSH_TEST_TOKEN is required');
   await e2e.fixtures.app.open(`/?token=${encodeURIComponent(token)}`);
   const continueButton = e2e.fixtures.screen.getByRole('button', { name: 'Continue' });
-  await continueButton.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
+  await expect.poll(async () => continueButton.isVisible(), { timeout: 1_000 }).toBe(true).catch(() => {});
   if (await continueButton.isVisible()) await continueButton.tap();
   const closeGetStarted = e2e.fixtures.screen.getByRole('dialog', { name: 'Get started' }).getByRole('button', { name: 'Close' });
-  await closeGetStarted.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
+  await expect.poll(async () => closeGetStarted.isVisible(), { timeout: 1_000 }).toBe(true).catch(() => {});
   if (await closeGetStarted.isVisible()) await closeGetStarted.tap();
 });
 
@@ -59,8 +59,4 @@ When('I send {string} to the agent', async ({ e2e }, message: string) => {
 
 Then('I see {string} in the conversation', async ({ e2e }, text: string) => {
   await expect(e2e.fixtures.screen.getByText(text).first()).toBeVisible();
-});
-
-Then('the conversation input is available', async ({ e2e }) => {
-  await expect(e2e.fixtures.screen.getByRole('textbox').first()).toBeVisible();
 });
