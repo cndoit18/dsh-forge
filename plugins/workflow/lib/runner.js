@@ -7,7 +7,7 @@ function workflowMeta(definition) {
   }
 }
 
-/** Own the Job, Session recording, and engine-run lifetime for saved workflows. */
+/** Own the Job, Session recording, and engine-run lifetime for workflows. */
 export class WorkflowRunner {
   constructor(ctx, workflows) {
     this.ctx = ctx
@@ -53,10 +53,10 @@ export class WorkflowRunner {
   }
 
   async start({ name, input = '', parent, toolCall, signal }) {
-    if (parent === undefined) throw new Error('saved workflow requires a calling agent')
+    if (parent === undefined) throw new Error('workflow requires a calling agent')
     const cwd = await this.ctx.workingDirectory.ensure(parent, signal)
     const definition = await this.workflows.get(name, { cwd, signal })
-    if (definition === undefined) throw new Error(`Unknown saved workflow: ${name}`)
+    if (definition === undefined) throw new Error(`Unknown workflow: ${name}`)
     const text = input.trimStart()
     if (definition.input?.required === true && text.trim() === '') {
       throw new Error(`/${name} requires input. ${definition.input.hint}`)
@@ -81,7 +81,7 @@ export class WorkflowRunner {
           this.activeSessions.set(run.id, parent.session)
         }
         return {
-          cancel: reason => run.cancel(reason ?? 'Saved workflow job stopped'),
+          cancel: reason => run.cancel(reason ?? 'Workflow job stopped'),
           done: run.result.then(async result => {
             try {
               if (result.stopReason === 'cancelled') return { status: 'killed' }

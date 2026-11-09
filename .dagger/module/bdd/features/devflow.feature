@@ -1,15 +1,14 @@
 Feature: DevFlow host commands
 
+  Scenario: Installed plugin details match their bundle declarations
+    Given the authenticated Web GUI is open
+    When I open the Plugins panel
+    Then each installed plugin shows its declared running components
+
   Scenario: DevFlow exposes all nine host commands
     Given the authenticated Web GUI is open
     When I inspect the DevFlow command menu
     Then the menu contains all nine DevFlow commands
-
-  Scenario: DevFlow icons follow commands after menu filtering
-    Given the authenticated Web GUI is open
-    When I inspect the DevFlow command menu
-    And I filter the DevFlow command menu with "f"
-    Then the filtered DevFlow commands keep their icons
 
   Scenario: Deep research completes directly without queuing a user message
     Given the authenticated Web GUI is open

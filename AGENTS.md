@@ -35,8 +35,9 @@ dsh-forge 是 DeepSeek Harness（DSH）的**容器化构建、运行与 Web 插�
 | `plugins/hello-world` | 无构建步骤的最小 Client 插件，手写 Host 与浏览器产物 |
 | `plugins/agent-plugins` | Host/Client 插件；esbuild 生成被 gitignore 的 `lib/client.js` |
 | `plugins/workflow` | 保存式 workflow 注册表、scoped commands 与后台 Jobs，无构建脚本 |
+| `plugins/workflows-bundle` | 聚合 workflow、filesystem provider 与 DevFlow 的单次安装 bundle，无构建脚本 |
 | `plugins/workflow-filesystem` | 项目/用户 workflow 文件发现与 Acorn AST + VM meta 解析，无构建脚本 |
-| `plugins/devflow` | 基于共享注册表提供九个默认 workflows 与 Web 命令装饰 |
+| `plugins/devflow` | 基于共享注册表提供九个默认 workflows，无构建脚本 |
 | `scripts/`、`prek.toml` | 插件版本、许可证维护与 submodule 初始化钩子 |
 
 ## 测试与验证
@@ -61,9 +62,7 @@ node --test plugins/devflow/tests/commands.test.js
 ```sh
 dagger --progress=plain call bdd run \
   --plugins ./plugins/agent-plugins \
-  --plugins ./plugins/workflow \
-  --plugins ./plugins/workflow-filesystem \
-  --plugins ./plugins/devflow \
+  --plugins ./plugins/workflows-bundle \
   --mock-data .dagger/module/bdd/testdata/mock-data \
   --ai=true \
   --video \
