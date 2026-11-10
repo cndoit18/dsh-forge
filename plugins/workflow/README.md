@@ -19,9 +19,9 @@ Each package is an independent Bundle; do not add its Loader rows to global Cord
 ## Use
 
 - `/<name> <input>` starts the winning saved workflow directly, without queuing a user message or requiring a model turn.
-- `/workflows` lists the current Agent's catalog. `/workflows reload` rescans providers and refreshes scoped commands after files change.
+- Each Agent has a dynamic `dsh-workflow:catalog` system-prompt section containing the current `name`, `description`, and optional `whenToUse` entries inside `<available_workflows>`. `/workflows` lists the same catalog. `/workflows reload` rescans providers and refreshes scoped commands after files change; the next prompt assembly uses the updated definitions. Empty catalogs contribute no prompt text.
 - `run_workflow` exposes the same named workflow to the model only for an explicit user request. Ad-hoc JavaScript continues to use the official `workflow` tool.
-- Runs return a `workflow-*` Job ID immediately. Existing Jobs controls collect output and cancel work; existing workflow-run conversation nodes show phases and Agents.
+- `run_workflow` returns a `workflow-*` Job ID immediately. Existing Jobs controls collect output and cancel work; existing workflow-run conversation nodes show phases and Agents.
 
 Project entries outrank user entries, which outrank bundled entries. A saved workflow never replaces an unrelated existing command such as `/permission`.
 

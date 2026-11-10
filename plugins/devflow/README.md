@@ -20,7 +20,7 @@ The filesystem provider is optional when only the bundled commands are needed.
 - `/batch <change>` creates a plan without starting workers. After approval, `/batch continue <approved plan>` assigns independent units to worktree-backed workers.
 - `/init`, `/review`, `/simplify`, `/security-review`, `/debug`, `/run`, and `/verify` run their packaged workflows.
 
-Submitting a slash command starts a Session-owned background Job without queuing a user message or requiring a model turn. The generic `run_workflow` model tool uses the same path for an explicitly requested saved workflow. Both return a Job ID immediately; `job_output` collects results and `job_kill` cancels the run.
+Submitting a slash command starts a Session-owned background Job without queuing a user message or requiring a model turn. A dynamic `dsh-workflow:catalog` system-prompt section exposes the current bundled and filesystem workflows, including `description` and optional `whenToUse`, inside `<available_workflows>`. `/workflows reload` refreshes that section for the next prompt assembly. The generic `run_workflow` model tool remains available for an explicitly requested saved workflow and returns a Job ID immediately; `job_output` collects results and `job_kill` cancels the run.
 
 Use `/workflows` to list bundled and filesystem workflows, and `/workflows reload` after changing workflow files.
 

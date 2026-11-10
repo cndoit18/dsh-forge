@@ -5,6 +5,7 @@ import { Then, When } from './fixtures.js';
 
 const devflowCommands = ['init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify', 'batch', 'deep-research'];
 const builtInMenuItems = ['File', 'Goal', 'Plan', 'Feedback', 'Compact', 'Permission', 'Model', 'Export'];
+const workflowInput = 'BDD workflow input';
 
 async function executeHostCommand(browser: any, line: string, options: { agentPreset?: string; cwd?: string } = {}) {
   const { agentPreset, cwd } = options;
@@ -48,7 +49,7 @@ async function submittedMessage(browser: any, jobId?: string) {
   return browser.evaluate(`(async () => {
     const sessionId = sessionStorage.getItem('devflow.bdd.session');
     const line = sessionStorage.getItem('devflow.bdd.line');
-    const jobId = ${JSON.stringify(jobId)};
+    const requestedJobId = ${JSON.stringify(jobId)};
     const rpc = async (method, request) => {
       const response = await fetch('/api/' + method, {
         method: 'POST', headers: { 'content-type': 'application/json' },
@@ -64,10 +65,14 @@ async function submittedMessage(browser: any, jobId?: string) {
     const commandInput = events.some(event => event.type === 'command/run' && '/' + event.data.name + (event.data.args ?? '') === line);
     const submitted = [...pending, ...events.filter(event => event.type === 'user/message').map(event => event.data)];
     const found = submitted.some(message => message.content?.some(block => block.type === 'text' && block.text === line));
+    const catalogInSystem = events.some(event => event.type === 'system/message' && event.data.message?.content?.some(block => block.type === 'text' && block.text.includes('<available_workflows>')));
+    const catalogInUser = submitted.some(message => message.content?.some(block => block.type === 'text' && block.text.includes('<available_workflows>')));
+    const jobSettlement = events.find(event => event.type === 'job/settled' && event.data.status === 'completed');
+    const jobId = requestedJobId ?? jobSettlement?.data.jobId;
     const runEnd = events.some(event => event.type === 'tool-workflow/run-end' && event.data.stopReason === 'completed');
-    const jobSettled = jobId !== undefined && events.some(event => event.type === 'job/settled' && event.data.jobId === jobId && event.data.status === 'completed');
-    const completionNotice = jobId !== undefined && submitted.some(message => message.source?.kind === 'tool-jobs' && message.content?.some(block => block.type === 'text' && block.text.includes('background job ' + jobId)));
-    return { found, commandInput, runEnd, jobSettled, completionNotice, blank: projection?.values?.sessionListMetadata?.blank, tools: events.filter(event => event.type === 'tool/call').map(event => event.data.name) };
+    const jobSettled = typeof jobId === 'string' && events.some(event => event.type === 'job/settled' && event.data.jobId === jobId && event.data.status === 'completed');
+    const completionNotice = typeof jobId === 'string' && submitted.some(message => message.source?.kind === 'tool-jobs' && message.content?.some(block => block.type === 'text' && block.text.includes('background job ' + jobId)));
+    return { found, catalogInSystem, catalogInUser, commandInput, runEnd, jobId: jobId ?? null, jobSettled, completionNotice, blank: projection?.values?.sessionListMetadata?.blank, tools: events.filter(event => event.type === 'tool/call' || event.type === 'tool/ptc-dispatch-start').map(event => event.data.name) };
   })()`);
 }
 
@@ -115,27 +120,29 @@ Then('the filtered DevFlow commands keep their icons', async ({ e2e }) => {
 });
 
 When('I run the deep research command with a BDD question', async ({ e2e }) => {
-  await executeHostCommand(e2e.fixtures.browser, '/deep-research BDD scoped workflow');
+  await executeHostCommand(e2e.fixtures.browser, `/deep-research ${workflowInput}`);
 });
 
-async function assertDirectWorkflow(browser: any) {
+async function assertDirectWorkflowWithCatalog(browser: any) {
   const result = await commandResult(browser);
   assert.equal(result.kind, 'success');
   const jobId = result.text.match(/workflow-[a-z0-9]+/)?.[0];
   assert.ok(jobId);
-  await expect.poll(async () => (await submittedMessage(browser)).commandInput).toBe(true);
+  await expect.poll(async () => (await submittedMessage(browser, jobId)).commandInput).toBe(true);
   await expect.poll(async () => (await submittedMessage(browser, jobId)).runEnd).toBe(true);
   await expect.poll(async () => (await submittedMessage(browser, jobId)).jobSettled).toBe(true);
   await expect.poll(async () => (await submittedMessage(browser, jobId)).completionNotice).toBe(true);
+  await expect.poll(async () => (await submittedMessage(browser, jobId)).catalogInSystem).toBe(true);
   const submitted = await submittedMessage(browser, jobId);
   assert.equal(submitted.found, false);
+  assert.equal(submitted.catalogInUser, false);
   assert.ok(!submitted.tools.includes('devflow'), 'slash command must not call the devflow model tool');
   assert.ok(!submitted.tools.includes('run_workflow'), 'slash command must not call the saved workflow model tool');
   await expect.poll(async () => (await submittedMessage(browser, jobId)).blank).toBe(false);
 }
 
-Then('the deep research workflow completes without a user message or model tool call', async ({ e2e }) => {
-  await assertDirectWorkflow(e2e.fixtures.browser);
+Then('the deep research workflow completes and publishes its catalog through the system prompt', async ({ e2e }) => {
+  await assertDirectWorkflowWithCatalog(e2e.fixtures.browser);
 });
 
 When('I run a project filesystem workflow', async ({ e2e }) => {
@@ -153,15 +160,15 @@ const result = await agent('Answer this BDD filesystem workflow question: ' + ar
 if (result === null) throw new Error('Project agent failed')
 return result
 `);
-  await executeHostCommand(e2e.fixtures.browser, '/bdd-echo BDD saved workflow', { cwd: project });
+  await executeHostCommand(e2e.fixtures.browser, `/bdd-echo ${workflowInput}`, { cwd: project });
 });
 
-Then('the project filesystem workflow completes without a user message or model tool call', async ({ e2e }) => {
-  await assertDirectWorkflow(e2e.fixtures.browser);
+Then('the project filesystem workflow completes and publishes its catalog through the system prompt', async ({ e2e }) => {
+  await assertDirectWorkflowWithCatalog(e2e.fixtures.browser);
 });
 
 When('I run deep research with the ptc preset', async ({ e2e }) => {
-  await executeHostCommand(e2e.fixtures.browser, '/deep-research BDD scoped workflow', { agentPreset: 'ptc' });
+  await executeHostCommand(e2e.fixtures.browser, `/deep-research ${workflowInput}`, { agentPreset: 'ptc' });
 });
 
 const uiDevflowCommands = ['init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify', 'batch', 'deep-research'];
@@ -184,18 +191,27 @@ async function uiCommandEvidence(browser: any, name: string) {
     const events = page.records.map(record => record.event);
     const commandRun = events.find(event => event.type === 'command/run' && event.data.name === ${JSON.stringify(name)});
     const commandDone = events.find(event => event.type === 'command/done' && event.data.commandId === commandRun?.data.commandId && event.data.kind === 'success');
+    const catalogInSystem = events.some(event => event.type === 'system/message' && event.data.message?.content?.some(block => block.type === 'text'
+      && block.text.includes('<available_workflows>') && block.text.includes('/' + ${JSON.stringify(name)} + ':')));
+    const catalogInUser = events.some(event => event.type === 'user/message' && event.data.content?.some(block => block.type === 'text' && block.text.includes('<available_workflows>')));
+    const workflowCalls = events.filter(event => (event.type === 'tool/call' || event.type === 'tool/ptc-dispatch-start') && event.data.name === 'run_workflow').length;
     const runStart = events.find(event => event.type === 'tool-workflow/run-start' && event.data.name === ${JSON.stringify(name)});
-    const runEnd = runStart !== undefined && events.some(event => event.type === 'tool-workflow/run-end' && event.data.runId === runStart.data.runId && event.data.stopReason === 'completed');
-    const jobId = commandDone?.data.text?.match(/workflow-[a-z0-9]+/)?.[0];
-    const jobSettled = jobId !== undefined && events.some(event => event.type === 'job/settled' && event.data.jobId === jobId && event.data.status === 'completed');
+    const runEndEvent = runStart === undefined ? undefined : events.find(event => event.type === 'tool-workflow/run-end' && event.data.runId === runStart.data.runId && event.data.stopReason === 'completed');
+    const runEnd = runEndEvent !== undefined;
+    const jobSettlement = runEndEvent === undefined ? undefined : events.find(event => event.type === 'job/settled' && event.seq > runEndEvent.seq && event.data.status === 'completed');
+    const jobId = jobSettlement?.data.jobId ?? commandDone?.data.text?.match(/workflow-[a-z0-9]+/)?.[0];
+    const jobSettled = jobSettlement !== undefined;
     return {
-      ok: commandRun !== undefined && runEnd && jobSettled,
+      ok: commandRun !== undefined && catalogInSystem && !catalogInUser && workflowCalls === 0 && runEnd && jobSettled,
       sessionId,
-      commandRun: commandRun?.data,
-      commandDone: commandDone?.data,
-      runStart: runStart?.data,
+      commandRun: commandRun?.data ?? null,
+      commandDone: commandDone?.data ?? null,
+      catalogInSystem,
+      catalogInUser,
+      workflowCalls,
+      runStart: runStart?.data ?? null,
       runEnd,
-      jobId,
+      jobId: jobId ?? null,
       jobSettled,
       events: events.slice(-20).map(event => event.type),
     };
@@ -222,7 +238,8 @@ When('I execute all nine DevFlow commands through the Web UI', async ({ e2e }) =
   const completed: string[] = [];
   for (const name of uiDevflowCommands) {
     console.log('BDD UI command start:', name);
-    const line = '/' + name + ' BDD UI execution';
+    const line = '/' + name + ' ' + workflowInput;
+    const injectedText = '<available_workflows>';
     const editor = e2e.fixtures.screen.getByRole('textbox').last();
     await editor.tap();
     await editor.fill(line);
@@ -236,6 +253,7 @@ When('I execute all nine DevFlow commands through the Web UI', async ({ e2e }) =
       console.error('BDD UI command failed:', name, JSON.stringify(await uiCommandEvidence(e2e.fixtures.browser, name)));
       throw error;
     }
+    await expect(e2e.fixtures.screen.getByText(injectedText, { exact: true })).toHaveCount(0);
     console.log('BDD UI command completed:', name);
     completed.push(name);
   }
@@ -248,20 +266,11 @@ Then('all nine DevFlow commands complete through the Web UI', async ({ e2e }) =>
 });
 
 When('I run the batch command without an approved plan', async ({ e2e }) => {
-  await executeHostCommand(e2e.fixtures.browser, '/batch BDD isolated units');
+  await executeHostCommand(e2e.fixtures.browser, `/batch ${workflowInput}`);
 });
 
-Then('batch completes planning directly without starting worktree workers', async ({ e2e }) => {
-  const result = await commandResult(e2e.fixtures.browser);
-  assert.equal(result.kind, 'success');
-  const jobId = result.text.match(/workflow-[a-z0-9]+/)?.[0];
-  assert.ok(jobId);
-  await expect.poll(async () => (await submittedMessage(e2e.fixtures.browser)).commandInput).toBe(true);
-  await expect.poll(async () => (await submittedMessage(e2e.fixtures.browser, jobId)).runEnd).toBe(true);
-  await expect.poll(async () => (await submittedMessage(e2e.fixtures.browser, jobId)).jobSettled).toBe(true);
-  await expect.poll(async () => (await submittedMessage(e2e.fixtures.browser, jobId)).completionNotice).toBe(true);
-  const submitted = await submittedMessage(e2e.fixtures.browser, jobId);
-  assert.equal(submitted.found, false);
-  assert.ok(!submitted.tools.includes('devflow'), 'slash command must not call the devflow model tool');
+Then('batch completes planning and publishes its catalog without starting worktree workers', async ({ e2e }) => {
+  await assertDirectWorkflowWithCatalog(e2e.fixtures.browser);
+  const submitted = await submittedMessage(e2e.fixtures.browser);
   assert.ok(!submitted.tools.includes('create_worktree'), 'batch must not create worktrees before plan approval');
 });

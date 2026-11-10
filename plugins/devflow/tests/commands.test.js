@@ -14,8 +14,8 @@ async function setup() {
   return harness
 }
 
-test('slash commands start bundled workflows directly without queuing a user message', async () => {
-  const { agent, command, runs, jobs, messages, events } = await setup()
+test('slash commands start bundled workflows and expose the catalog without queuing messages', async () => {
+  const { agent, command, runs, jobs, messages, assemble } = await setup()
   const result = await command('deep-research').handler({ agent, rawInput: ' Compare DSH Skills and Workflows', signal: new AbortController().signal })
   assert.deepEqual(result, { kind: 'success', text: '工作流已启动，任务编号：workflow-test-1。' })
   assert.equal(name, 'devflow')
@@ -26,7 +26,8 @@ test('slash commands start bundled workflows directly without queuing a user mes
   assert.equal(runs[0].spec.parent, agent)
   assert.equal(runs[0].spec.args.question, 'Compare DSH Skills and Workflows')
   assert.equal(jobs[0].spec.toolCall, undefined)
-  assert.ok(events.some(event => event.type === 'tool-workflow/run-start' && event.data.name === 'deep-research'))
+  assert.match(assemble(agent)[0].text, /<available_workflows>/)
+  assert.ok(assemble(agent)[0].text.includes('/deep-research'))
   assert.equal(command('deep-research').recordInput, undefined)
   await jobs[0].hooks.done
 })
@@ -165,7 +166,7 @@ test('dispose failure preserves the result and releases run state', async () => 
 })
 
 test('all development commands start packaged workflows without queuing messages', async () => {
-  const { agent, command, tools, runs, jobs, messages } = await setup()
+  const { agent, command, tools, runs, jobs, messages, assemble } = await setup()
   for (const name of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify']) {
     const input = ['init', 'review'].includes(name) ? '' : 'target'
     const started = await command(name).handler({ agent, rawInput: input, signal: new AbortController().signal })
@@ -173,6 +174,7 @@ test('all development commands start packaged workflows without queuing messages
     assert.match(started.text, /^工作流已启动，任务编号：workflow-test-\d+。$/)
     assert.equal(messages.length, 0)
     assert.equal(runs.at(-1).spec.args.instruction, input)
+    assert.ok(assemble(agent)[0].text.includes('/' + name + ':'))
     await jobs.at(-1).hooks.done
     const result = await tools.get('run_workflow').execute({ name, input }, execution(agent))
     assert.equal(result.name, name)
@@ -196,11 +198,12 @@ test('review defaults to low only when no recognized strength is supplied', asyn
 })
 
 test('unloading removes generated slash commands, model tool, and progress listeners', async () => {
-  const { ctx, agent, tools, listeners, dispose } = await setup()
+  const { ctx, agent, tools, listeners, dispose, assemble } = await setup()
   assert.equal(ctx.commands.list(agent).filter(command => command.name !== 'workflows').length, 9)
   assert.equal(tools.size, 1)
   dispose()
   assert.equal(ctx.commands.list(agent).length, 0)
   assert.equal(tools.size, 0)
+  assert.deepEqual(assemble(agent), [])
   for (const entries of listeners.values()) assert.equal(entries.size, 0)
 })
