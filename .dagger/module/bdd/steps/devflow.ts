@@ -94,7 +94,7 @@ async function submittedMessage(browser: any) {
     const pending = Object.values(projection?.values?.inbox ?? {}).flat();
     const events = page.records.map(record => record.event);
     const commandName = line.slice(1).split(' ', 1)[0];
-    const commandInput = events.some(event => event.type === 'command/run' && event.data.name === commandName && event.data.args === undefined);
+    const commandInput = events.some(event => event.type === 'command/run' && event.data.name === commandName && event.data.args === line.slice(commandName.length + 1));
     const submitted = [...pending, ...events.filter(event => event.type === 'user/message').map(event => event.data)];
     const found = submitted.some(message => message.content?.some(block => block.type === 'text' && block.text === line));
     const turnStarted = events.some(event => event.type === 'turn/start');
@@ -182,8 +182,18 @@ async function assertQueuedCommand(browser: any) {
   await expect.poll(async () => (await submittedMessage(browser)).blank).toBe(false);
 }
 
-Then('the deep research request appears as a user message and the session stays visible', async ({ e2e }) => {
-  await assertQueuedCommand(e2e.fixtures.browser);
+Then('the deep research request appears as a blue command without a submission receipt', async ({ e2e }) => {
+  const browser = e2e.fixtures.browser;
+  const screen = e2e.fixtures.screen;
+  await assertQueuedCommand(browser);
+  const line = await browser.evaluate("sessionStorage.getItem('devflow.bdd.line')");
+  const input = screen.getByRole('group', { name: /^(Command input|指令输入)$/ });
+  await expect(input).toBeVisible();
+  await expect.poll(async () => browser.evaluate(`document.querySelector('[data-devflow-command-input] [data-ref-chip="command"]')?.textContent`)).toBe('/deep-research');
+  await expect(screen.getByText(line, { exact: true })).toHaveCount(1);
+  await expect(screen.getByText('工作流已提交，等待 Agent 启动。')).toHaveCount(0);
+  const sessionId = await browser.evaluate("sessionStorage.getItem('devflow.bdd.session')");
+  await expect.poll(async () => browser.evaluate(`document.querySelector('[data-row-key="session:${sessionId}"]')?.getClientRects().length > 0`)).toBe(true);
 });
 
 When('I run a project filesystem workflow', async ({ e2e }) => {

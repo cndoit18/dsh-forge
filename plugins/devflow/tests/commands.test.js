@@ -16,7 +16,7 @@ async function setup() {
 
 test('slash commands queue a visible user message before any workflow starts', async () => {
   const { agent, command, runs, jobs, messages } = await setup()
-  const result = await command('deep-research').handler({ agent, rawInput: ' Compare DSH Skills and Workflows', signal: new AbortController().signal })
+  const result = await command('deep-research').handler({ agent, commandId: 'command-test', rawInput: ' Compare DSH Skills and Workflows', signal: new AbortController().signal })
   assert.deepEqual(result, { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
   assert.equal(name, 'devflow')
   assert.deepEqual(inject, ['workflows'])
@@ -24,10 +24,10 @@ test('slash commands queue a visible user message before any workflow starts', a
   assert.equal(jobs.length, 0)
   assert.equal(messages.length, 1)
   assert.equal(messages[0].role, 'user')
-  assert.equal(messages[0].source.kind, 'user')
+  assert.deepEqual(messages[0].source, { kind: 'workflow', name: 'deep-research', commandId: 'command-test' })
   assert.ok(messages[0].id)
   assert.equal(messages[0].content[0].text, '/deep-research Compare DSH Skills and Workflows')
-  assert.equal(command('deep-research').recordInput, false)
+  assert.equal(command('deep-research').recordInput, undefined)
 })
 
 test('the generic model tool publishes an owned job immediately while its workflow is pending', async () => {
@@ -173,7 +173,7 @@ test('all development commands queue messages and use their packaged workflows',
   const { agent, command, tools, runs, jobs, messages } = await setup()
   for (const [index, name] of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify'].entries()) {
     const input = ['init', 'review'].includes(name) ? '' : 'target'
-    const started = await command(name).handler({ agent, rawInput: input, signal: new AbortController().signal })
+    const started = await command(name).handler({ agent, commandId: `command-${name}`, rawInput: input, signal: new AbortController().signal })
     assert.deepEqual(started, { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
     assert.equal(messages.length, index + 1)
     assert.equal(messages.at(-1).content[0].text, '/' + name + (input ? ' ' + input : ''))

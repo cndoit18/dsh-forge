@@ -44,10 +44,9 @@ export function apply(ctx) {
         name: definition.name,
         description: definition.description,
         input: { hint: definition.input?.hint ?? '[输入]' },
-        // The followup owns the visible input and starts the first turn, keeping
-        // this Session visible when another Workspace becomes current.
-        recordInput: false,
-        handler: async ({ agent: parent, rawInput, signal: invocationSignal }) => {
+        // The followup starts the first turn, keeping this Session visible when
+        // another Workspace becomes current; command/run retains the input for presentation.
+        handler: async ({ agent: parent, commandId, rawInput, signal: invocationSignal }) => {
           try {
             invocationSignal?.throwIfAborted()
             const text = rawInput.trimStart()
@@ -58,7 +57,7 @@ export function apply(ctx) {
               id: randomUUID(),
               role: 'user',
               content: [{ type: 'text', text: `/${definition.name}${text ? ` ${text}` : ''}` }],
-              source: { kind: 'user' },
+              source: { kind: 'workflow', name: definition.name, commandId },
             })
             return { kind: 'success', text: '工作流已提交，等待 Agent 启动。' }
           } catch (error) {
