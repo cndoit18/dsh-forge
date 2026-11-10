@@ -1,6 +1,6 @@
 {
   "name": "@dshforge/workflows-bundle",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Complete workflow bundle with registry, filesystem provider, and DevFlow workflows for DeepSeek Harness.",
   "files": [
@@ -21,8 +21,8 @@
     }
   },
   "dependencies": {
-    "@dshforge/devflow": "0.2.1",
-    "@dshforge/workflow": "0.1.1",
+    "@dshforge/devflow": "0.2.2",
+    "@dshforge/workflow": "0.1.2",
     "@dshforge/workflow-filesystem": "0.1.1"
   },
   "peerDependencies": {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { WorkflowRegistry } from './registry.js'
 
 export const name = 'dsh-workflow'
@@ -43,17 +44,25 @@ export function apply(ctx) {
         name: definition.name,
         description: definition.description,
         input: { hint: definition.input?.hint ?? '[输入]' },
+        // The followup owns the visible input and starts the first turn, keeping
+        // this Session visible when another Workspace becomes current.
+        recordInput: false,
         handler: async ({ agent: parent, rawInput, signal: invocationSignal }) => {
           try {
-            const { jobId } = await workflows.start({
-              name: definition.name,
-              input: rawInput,
-              parent,
-              signal: invocationSignal,
+            invocationSignal?.throwIfAborted()
+            const text = rawInput.trimStart()
+            if (definition.input?.required === true && text.trim() === '') {
+              return { kind: 'error', text: `/${definition.name} requires input. ${definition.input.hint}` }
+            }
+            parent.followup({
+              id: randomUUID(),
+              role: 'user',
+              content: [{ type: 'text', text: `/${definition.name}${text ? ` ${text}` : ''}` }],
+              source: { kind: 'user' },
             })
-            return { kind: 'success', text: `工作流已启动，任务编号：${jobId}。` }
+            return { kind: 'success', text: '工作流已提交，等待 Agent 启动。' }
           } catch (error) {
-            if (invocationSignal.aborted) throw error
+            if (invocationSignal?.aborted) throw error
             return { kind: 'error', text: error instanceof Error ? error.message : String(error) }
           }
         },

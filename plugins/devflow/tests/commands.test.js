@@ -14,21 +14,20 @@ async function setup() {
   return harness
 }
 
-test('slash commands start bundled workflows directly without queuing a user message', async () => {
-  const { agent, command, runs, jobs, messages, events } = await setup()
+test('slash commands queue a visible user message before any workflow starts', async () => {
+  const { agent, command, runs, jobs, messages } = await setup()
   const result = await command('deep-research').handler({ agent, rawInput: ' Compare DSH Skills and Workflows', signal: new AbortController().signal })
-  assert.deepEqual(result, { kind: 'success', text: '工作流已启动，任务编号：workflow-test-1。' })
+  assert.deepEqual(result, { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
   assert.equal(name, 'devflow')
   assert.deepEqual(inject, ['workflows'])
-  assert.equal(runs.length, 1)
-  assert.equal(jobs.length, 1)
-  assert.equal(messages.length, 0)
-  assert.equal(runs[0].spec.parent, agent)
-  assert.equal(runs[0].spec.args.question, 'Compare DSH Skills and Workflows')
-  assert.equal(jobs[0].spec.toolCall, undefined)
-  assert.ok(events.some(event => event.type === 'tool-workflow/run-start' && event.data.name === 'deep-research'))
-  assert.equal(command('deep-research').recordInput, undefined)
-  await jobs[0].hooks.done
+  assert.equal(runs.length, 0)
+  assert.equal(jobs.length, 0)
+  assert.equal(messages.length, 1)
+  assert.equal(messages[0].role, 'user')
+  assert.equal(messages[0].source.kind, 'user')
+  assert.ok(messages[0].id)
+  assert.equal(messages[0].content[0].text, '/deep-research Compare DSH Skills and Workflows')
+  assert.equal(command('deep-research').recordInput, false)
 })
 
 test('the generic model tool publishes an owned job immediately while its workflow is pending', async () => {
@@ -114,18 +113,24 @@ test('empty commands fail before starting a workflow', async () => {
   assert.equal(runs.length, 0)
 })
 
-test('cancellation during script loading prevents slash and tool jobs', async () => {
-  for (const kind of ['command', 'tool']) {
-    const { agent, command, tools, runs, jobs } = await setup()
-    const abort = new AbortController()
-    const pending = kind === 'command'
-      ? command('deep-research').handler({ agent, rawInput: 'question', signal: abort.signal })
-      : tools.get('run_workflow').execute({ name: 'deep-research', input: 'question' }, { ...execution(agent), signal: abort.signal })
-    abort.abort()
-    await assert.rejects(pending, { name: 'AbortError' })
-    assert.equal(jobs.length, 0)
-    assert.equal(runs.length, 0)
-  }
+test('an aborted slash command does not queue a user message', async () => {
+  const { agent, command, runs, jobs, messages } = await setup()
+  const abort = new AbortController()
+  abort.abort()
+  await assert.rejects(command('deep-research').handler({ agent, rawInput: 'question', signal: abort.signal }), { name: 'AbortError' })
+  assert.equal(messages.length, 0)
+  assert.equal(jobs.length, 0)
+  assert.equal(runs.length, 0)
+})
+
+test('cancellation during script loading prevents tool jobs', async () => {
+  const { agent, tools, runs, jobs } = await setup()
+  const abort = new AbortController()
+  const pending = tools.get('run_workflow').execute({ name: 'deep-research', input: 'question' }, { ...execution(agent), signal: abort.signal })
+  abort.abort()
+  await assert.rejects(pending, { name: 'AbortError' })
+  assert.equal(jobs.length, 0)
+  assert.equal(runs.length, 0)
 })
 
 test('workflow failure and cancellation become terminal job outcomes and dispose the run', async () => {
@@ -164,16 +169,15 @@ test('dispose failure preserves the result and releases run state', async () => 
   assert.equal(jobs[0].job.output.length, 0)
 })
 
-test('all development commands start packaged workflows without queuing messages', async () => {
+test('all development commands queue messages and use their packaged workflows', async () => {
   const { agent, command, tools, runs, jobs, messages } = await setup()
-  for (const name of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify']) {
+  for (const [index, name] of ['batch', 'init', 'review', 'simplify', 'security-review', 'debug', 'run', 'verify'].entries()) {
     const input = ['init', 'review'].includes(name) ? '' : 'target'
     const started = await command(name).handler({ agent, rawInput: input, signal: new AbortController().signal })
-    assert.equal(started.kind, 'success')
-    assert.match(started.text, /^工作流已启动，任务编号：workflow-test-\d+。$/)
-    assert.equal(messages.length, 0)
-    assert.equal(runs.at(-1).spec.args.instruction, input)
-    await jobs.at(-1).hooks.done
+    assert.deepEqual(started, { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
+    assert.equal(messages.length, index + 1)
+    assert.equal(messages.at(-1).content[0].text, '/' + name + (input ? ' ' + input : ''))
+    assert.equal(runs.length, index)
     const result = await tools.get('run_workflow').execute({ name, input }, execution(agent))
     assert.equal(result.name, name)
     assert.equal(runs.at(-1).spec.args.instruction, input)

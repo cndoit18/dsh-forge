@@ -64,12 +64,12 @@ async function executeUiCommand(e2e: BddE2E, name: string, line: string, options
   await send.tap();
   await expect(e2e.fixtures.screen.getByText(line, { exact: true }).last()).toBeVisible();
   try {
-    await expect.poll(async () => (await uiCommandEvidence(browser, name)).ok).toBe(true);
+    await expect.poll(async () => (await uiCommandEvidence(browser, name, line)).ok).toBe(true);
   } catch (error) {
-    console.error('BDD UI command failed:', name, JSON.stringify(await uiCommandEvidence(browser, name)));
+    console.error('BDD UI command failed:', name, JSON.stringify(await uiCommandEvidence(browser, name, line)));
     throw error;
   }
-  const evidence = await uiCommandEvidence(browser, name);
+  const evidence = await uiCommandEvidence(browser, name, line);
   await browser.evaluate(`sessionStorage.setItem('devflow.bdd.result', ${JSON.stringify(JSON.stringify(evidence.commandDone))})`);
 }
 
@@ -77,11 +77,10 @@ async function commandResult(browser: any) {
   return JSON.parse(await browser.evaluate('sessionStorage.getItem(\'devflow.bdd.result\')') as string);
 }
 
-async function submittedMessage(browser: any, jobId?: string) {
+async function submittedMessage(browser: any) {
   return browser.evaluate(`(async () => {
     const sessionId = sessionStorage.getItem('devflow.bdd.session');
     const line = sessionStorage.getItem('devflow.bdd.line');
-    const jobId = ${JSON.stringify(jobId)};
     const rpc = async (method, request) => {
       const response = await fetch('/api/' + method, {
         method: 'POST', headers: { 'content-type': 'application/json' },
@@ -94,21 +93,12 @@ async function submittedMessage(browser: any, jobId?: string) {
     const page = await rpc('session/page', { address: { kind: 'session', sessionId }, throughSeq: projection.asOfSeq, maxMessages: 200 });
     const pending = Object.values(projection?.values?.inbox ?? {}).flat();
     const events = page.records.map(record => record.event);
-    const commandInput = events.some(event => event.type === 'command/run' && '/' + event.data.name + (event.data.args ?? '') === line);
+    const commandName = line.slice(1).split(' ', 1)[0];
+    const commandInput = events.some(event => event.type === 'command/run' && event.data.name === commandName && event.data.args === undefined);
     const submitted = [...pending, ...events.filter(event => event.type === 'user/message').map(event => event.data)];
-    const text = message => (message.content ?? []).filter(block => block.type === 'text').map(block => block.text).join(' ');
     const found = submitted.some(message => message.content?.some(block => block.type === 'text' && block.text === line));
-    const runEnd = events.some(event => event.type === 'tool-workflow/run-end' && event.data.stopReason === 'completed');
-    const jobSettled = jobId !== undefined && events.some(event => event.type === 'job/settled' && event.data.jobId === jobId && event.data.status === 'completed');
-    const notices = submitted.filter(message => message.source?.kind === 'tool-jobs' && text(message).includes('background job ' + jobId));
-    const completionText = notices.length === 0 ? null : text(notices[notices.length - 1]);
-    const agentStarts = events.filter(event => event.type === 'tool-workflow/agent-start').length;
-    return {
-      found, commandInput, runEnd, jobSettled, agentStarts, completionText,
-      completionNotice: completionText !== null,
-      blank: projection?.values?.sessionListMetadata?.blank,
-      tools: events.filter(event => event.type === 'tool/call').map(event => event.data.name),
-    };
+    const turnStarted = events.some(event => event.type === 'turn/start');
+    return { found, commandInput, turnStarted, blank: projection?.values?.sessionListMetadata?.blank ?? null, tools: events.filter(event => event.type === 'tool/call').map(event => event.data.name) };
   })()`);
 }
 
@@ -182,27 +172,18 @@ When('I run the deep research command with a BDD question', async ({ e2e }) => {
   await executeUiCommand(e2e, 'deep-research', '/deep-research BDD scoped workflow');
 });
 
-async function assertDirectWorkflow(browser: any, expectedOutput: string[]) {
+async function assertQueuedCommand(browser: any) {
   const result = await commandResult(browser);
   assert.equal(result.kind, 'success');
-  const jobId = result.text.match(/workflow-[a-z0-9]+/)?.[0];
-  assert.ok(jobId);
+  assert.equal(result.text, '工作流已提交，等待 Agent 启动。');
   await expect.poll(async () => (await submittedMessage(browser)).commandInput).toBe(true);
-  await expect.poll(async () => (await submittedMessage(browser, jobId)).runEnd).toBe(true);
-  await expect.poll(async () => (await submittedMessage(browser, jobId)).jobSettled).toBe(true);
-  await expect.poll(async () => (await submittedMessage(browser, jobId)).completionNotice).toBe(true);
-  const submitted = await submittedMessage(browser, jobId);
-  assert.equal(submitted.found, false, 'slash command must not be queued as a user message');
-  assert.ok(!submitted.tools.includes('devflow'), 'slash command must not call the devflow model tool');
-  assert.ok(!submitted.tools.includes('run_workflow'), 'slash command must not call the workflow model tool');
-  for (const fragment of expectedOutput) {
-    assert.ok(submitted.completionText.includes(fragment), 'missing workflow result ' + JSON.stringify(fragment) + '; notice: ' + submitted.completionText);
-  }
-  await expect.poll(async () => (await submittedMessage(browser, jobId)).blank).toBe(false);
+  await expect.poll(async () => (await submittedMessage(browser)).found).toBe(true);
+  await expect.poll(async () => (await submittedMessage(browser)).turnStarted).toBe(true);
+  await expect.poll(async () => (await submittedMessage(browser)).blank).toBe(false);
 }
 
-Then('the deep research workflow returns its result without model-mediated dispatch', async ({ e2e }) => {
-  await assertDirectWorkflow(e2e.fixtures.browser, ['No claims extracted.', '"angles": 1']);
+Then('the deep research request appears as a user message and the session stays visible', async ({ e2e }) => {
+  await assertQueuedCommand(e2e.fixtures.browser);
 });
 
 When('I run a project filesystem workflow', async ({ e2e }) => {
@@ -223,15 +204,52 @@ return result
   await executeUiCommand(e2e, 'bdd-echo', '/bdd-echo BDD workflow', { cwd: project });
 });
 
-Then('the project filesystem workflow returns its result without model-mediated dispatch', async ({ e2e }) => {
-  await assertDirectWorkflow(e2e.fixtures.browser, ['aimock fixture loaded']);
+Then('the project workflow request appears as a user message and the session stays visible', async ({ e2e }) => {
+  await assertQueuedCommand(e2e.fixtures.browser);
+});
+
+When('I run debug in workspace A and create a session in workspace B after its first turn starts', async ({ e2e }) => {
+  const browser = e2e.fixtures.browser;
+  const workspaceA = '/bdd/.e2e/workspace-a';
+  const workspaceB = '/bdd/.e2e/workspace-b';
+  await rm(workspaceA, { recursive: true, force: true });
+  await rm(workspaceB, { recursive: true, force: true });
+  await mkdir(workspaceA + '/.git', { recursive: true });
+  await mkdir(workspaceB + '/.git', { recursive: true });
+  await executeUiCommand(e2e, 'debug', '/debug BDD cross-workspace', { cwd: workspaceA });
+  await expect.poll(async () => (await submittedMessage(browser)).turnStarted).toBe(true);
+  await browser.evaluate(`(async () => {
+    const workspaceResponse = await fetch('/api/workspace/create', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: 'bdd-devflow-other-workspace', method: 'workspace/create', payload: { args: { request: { path: '${workspaceB}' } } } }),
+    }).then(response => response.json());
+    const workspaceId = workspaceResponse.result?.value?.workspace?.workspaceId;
+    if (!workspaceId) throw new Error('workspace B workspace/create failed: ' + JSON.stringify(workspaceResponse));
+    const created = await fetch('/api/session/create', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: 'bdd-devflow-other-session', method: 'session/create', payload: { args: { request: { workspaceId } } } }),
+    }).then(response => response.json());
+    const sessionId = created.result?.value?.sessionId;
+    if (!sessionId) throw new Error('workspace B session/create failed: ' + JSON.stringify(created));
+    localStorage.setItem('dsh.sessions.current', JSON.stringify({ sessionId }));
+  })()`);
+  await e2e.fixtures.app.open('/');
+});
+
+Then("workspace A's session remains visible", async ({ e2e }) => {
+  const browser = e2e.fixtures.browser;
+  const sessionId = await browser.evaluate("sessionStorage.getItem('devflow.bdd.session')");
+  const selector = '[data-row-key="session:' + sessionId + '"]';
+  await expect.poll(async () => browser.evaluate(`document.querySelector(${JSON.stringify(selector)})?.getClientRects().length > 0`)).toBe(true);
+  const started = await submittedMessage(browser);
+  assert.equal(started.blank, false);
 });
 
 When('I run deep research with the ptc preset', async ({ e2e }) => {
   await executeUiCommand(e2e, 'deep-research', '/deep-research BDD scoped workflow', { agentPreset: 'ptc' });
 });
 
-async function uiCommandEvidence(browser: any, name: string) {
+async function uiCommandEvidence(browser: any, name: string, line: string) {
   return browser.evaluate(`(async () => {
     const current = JSON.parse(localStorage.getItem('dsh.sessions.current') ?? '{}');
     const sessionId = current.sessionId;
@@ -249,31 +267,16 @@ async function uiCommandEvidence(browser: any, name: string) {
     const events = page.records.map(record => record.event);
     const commandRun = events.find(event => event.type === 'command/run' && event.data.name === ${JSON.stringify(name)});
     const commandDone = events.find(event => event.type === 'command/done' && event.data.commandId === commandRun?.data.commandId && event.data.kind === 'success');
-    const runStart = events.find(event => event.type === 'tool-workflow/run-start' && event.data.name === ${JSON.stringify(name)});
-    const runEnd = runStart !== undefined && events.some(event => event.type === 'tool-workflow/run-end' && event.data.runId === runStart.data.runId && event.data.stopReason === 'completed');
-    const jobId = commandDone?.data.text?.match(/workflow-[a-z0-9]+/)?.[0];
-    const jobSettled = jobId !== undefined && events.some(event => event.type === 'job/settled' && event.data.jobId === jobId && event.data.status === 'completed');
-    const completionText = events
-      .filter(event => event.type === 'user/message' && event.data.source?.kind === 'tool-jobs')
-      .flatMap(event => event.data.content ?? [])
-      .filter(block => block.type === 'text')
-      .map(block => block.text)
-      .find(text => jobId !== undefined && text.includes('background job ' + jobId)) ?? null;
-    const line = '/' + ${JSON.stringify(name)} + ' BDD UI execution';
-    const queuedInput = events.some(event => event.type === 'user/message' && event.data.content?.some(block => block.type === 'text' && block.text === line));
-    const dispatchTools = events.filter(event => event.type === 'tool/call' && ['devflow', 'run_workflow'].includes(event.data.name)).map(event => event.data.name);
+    const line = ${JSON.stringify(line)};
+    const submitted = events.some(event => event.type === 'user/message' && event.data.content?.some(block => block.type === 'text' && block.text === line));
+    const blank = projection?.values?.sessionListMetadata?.blank ?? null;
     return {
-      ok: commandRun !== undefined && commandDone !== undefined && runEnd && jobSettled && completionText !== null,
+      ok: commandRun !== undefined && commandDone !== undefined && submitted && blank === false,
       sessionId,
-      commandRun: commandRun?.data,
-      commandDone: commandDone?.data,
-      runStart: runStart?.data,
-      runEnd,
-      jobId,
-      jobSettled,
-      completionText,
-      queuedInput,
-      dispatchTools,
+      commandRun: commandRun?.data ?? null,
+      commandDone: commandDone?.data ?? null,
+      submitted,
+      blank,
       events: events.slice(-20).map(event => event.type),
     };
   })()`);
@@ -294,7 +297,7 @@ async function grantDangerFullAccess(browser: any) {
   assert.equal(result?.kind, 'success');
 }
 
-When('I execute all nine DevFlow commands through the Web UI', async ({ e2e }) => {
+When('I queue all nine DevFlow commands through the Web UI', async ({ e2e }) => {
   await grantDangerFullAccess(e2e.fixtures.browser);
   for (const name of devflowCommands) {
     console.log('BDD UI command start:', name);
@@ -307,30 +310,22 @@ When('I execute all nine DevFlow commands through the Web UI', async ({ e2e }) =
     await send.tap();
     await expect(e2e.fixtures.screen.getByText(line, { exact: true }).last()).toBeVisible();
     try {
-      await expect.poll(async () => (await uiCommandEvidence(e2e.fixtures.browser, name)).ok).toBe(true);
+      await expect.poll(async () => (await uiCommandEvidence(e2e.fixtures.browser, name, line)).ok).toBe(true);
     } catch (error) {
-      console.error('BDD UI command failed:', name, JSON.stringify(await uiCommandEvidence(e2e.fixtures.browser, name)));
+      console.error('BDD UI command failed:', name, JSON.stringify(await uiCommandEvidence(e2e.fixtures.browser, name, line)));
       throw error;
     }
-    console.log('BDD UI command completed:', name);
+    console.log('BDD UI command queued:', name);
   }
 });
 
-Then('all nine DevFlow commands complete through the Web UI', async ({ e2e }) => {
+Then('all nine DevFlow commands are queued through the Web UI', async ({ e2e }) => {
   for (const name of devflowCommands) {
-    const evidence = await uiCommandEvidence(e2e.fixtures.browser, name);
-    assert.equal(evidence.ok, true, '/' + name + ' did not complete: ' + JSON.stringify(evidence));
+    const evidence = await uiCommandEvidence(e2e.fixtures.browser, name, '/' + name + ' BDD UI execution');
+    assert.equal(evidence.ok, true, '/' + name + ' was not queued: ' + JSON.stringify(evidence));
     assert.equal(evidence.commandDone.kind, 'success');
-    assert.equal(evidence.queuedInput, false, '/' + name + ' was queued as a user message');
-    assert.deepEqual(evidence.dispatchTools, [], '/' + name + ' used model-mediated dispatch');
-    const expectedOutput = name === 'deep-research'
-      ? ['No claims extracted.', '"angles": 1']
-      : name === 'batch'
-        ? ['"status": "plan-ready"', 'aimock fixture loaded']
-        : ['aimock fixture loaded'];
-    for (const fragment of expectedOutput) {
-      assert.ok(evidence.completionText.includes(fragment), '/' + name + ' returned the wrong result: ' + evidence.completionText);
-    }
+    assert.equal(evidence.submitted, true, '/' + name + ' was not queued as a user message');
+    assert.equal(evidence.blank, false, '/' + name + ' did not start a visible first turn');
   }
 });
 
@@ -338,11 +333,8 @@ When('I run the batch command without an approved plan', async ({ e2e }) => {
   await executeUiCommand(e2e, 'batch', '/batch BDD isolated units');
 });
 
-Then('batch returns an unapproved plan without starting worktree workers', async ({ e2e }) => {
-  await assertDirectWorkflow(e2e.fixtures.browser, ['"status": "plan-ready"', 'aimock fixture loaded']);
-  const result = await commandResult(e2e.fixtures.browser);
-  const jobId = result.text.match(/workflow-[a-z0-9]+/)?.[0];
-  const submitted = await submittedMessage(e2e.fixtures.browser, jobId);
-  assert.equal(submitted.agentStarts, 1, 'batch must run only the planning agent before approval');
+Then('batch submits its planning message without starting worktree workers', async ({ e2e }) => {
+  await assertQueuedCommand(e2e.fixtures.browser);
+  const submitted = await submittedMessage(e2e.fixtures.browser);
   assert.ok(!submitted.tools.includes('create_worktree'), 'batch must not create worktrees before plan approval');
 });
