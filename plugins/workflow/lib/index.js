@@ -53,6 +53,7 @@ export function apply(ctx) {
             if (definition.input?.required === true && text.trim() === '') {
               return { kind: 'error', text: `/${definition.name} requires input. ${definition.input.hint}` }
             }
+            parent.session.append('workflow/command', { commandId, name: definition.name, args: rawInput })
             parent.followup({
               id: randomUUID(),
               role: 'user',

@@ -15,7 +15,7 @@ async function setup() {
 }
 
 test('slash commands queue a visible user message before any workflow starts', async () => {
-  const { agent, command, runs, jobs, messages } = await setup()
+  const { agent, command, runs, jobs, messages, events } = await setup()
   const result = await command('deep-research').handler({ agent, commandId: 'command-test', rawInput: ' Compare DSH Skills and Workflows', signal: new AbortController().signal })
   assert.deepEqual(result, { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
   assert.equal(name, 'devflow')
@@ -25,6 +25,9 @@ test('slash commands queue a visible user message before any workflow starts', a
   assert.equal(messages.length, 1)
   assert.equal(messages[0].role, 'user')
   assert.deepEqual(messages[0].source, { kind: 'workflow', name: 'deep-research', commandId: 'command-test' })
+  assert.deepEqual(events.find(event => event.type === 'workflow/command')?.data, {
+    commandId: 'command-test', name: 'deep-research', args: ' Compare DSH Skills and Workflows',
+  })
   assert.ok(messages[0].id)
   assert.equal(messages[0].content[0].text, '/deep-research Compare DSH Skills and Workflows')
   assert.equal(command('deep-research').recordInput, undefined)

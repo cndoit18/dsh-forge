@@ -16,7 +16,7 @@ Each package is an independent Bundle; do not add its Loader rows to global Cord
 
 ## Use
 
-- `/<name> <input>` queues the original command as a followup user message. That first turn calls `run_workflow` to start the winning workflow, clearing the Session's provisional blank state before background work begins.
+- `/<name> <input>` queues the original command as a followup user message. The Web client presents every workflow with the official blue command Chip and hides successful submission receipts; failures retain the generic command error card. That first turn calls `run_workflow` to start the winning workflow, clearing the Session's provisional blank state before background work begins.
 - `/workflows` lists the current Agent's catalog. `/workflows reload` rescans providers and refreshes scoped commands after files change.
 - `run_workflow` exposes the same named workflow to the model only for an explicit user request. Ad-hoc JavaScript continues to use the official `workflow` tool.
 - Runs return a `workflow-*` Job ID when the model tool starts them. Existing Jobs controls collect output and cancel work; existing workflow-run conversation nodes show phases and Agents.

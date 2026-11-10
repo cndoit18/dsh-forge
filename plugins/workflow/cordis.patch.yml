@@ -1,4 +1,4 @@
-# Mount the workflow registry over the official PTC execution engine.
+# Mount the workflow registry and Web command presentation over the official PTC execution engine.
 - insert:
     - id: workflow-ptc
       name: '@deepseek-ai/dsh-workflow-ptc'

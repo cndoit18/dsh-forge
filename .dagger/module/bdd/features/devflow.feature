@@ -21,7 +21,7 @@ Feature: DevFlow commands and workflows
 
   Scenario: Project filesystem workflow runs as a scoped slash command
     When I run a project filesystem workflow
-    Then the project workflow request appears as a user message and the session stays visible
+    Then the project workflow request appears as a blue command without a submission receipt
 
   Scenario: A newly started workflow session stays visible after switching workspaces
     When I run debug in workspace A and create a session in workspace B after its first turn starts

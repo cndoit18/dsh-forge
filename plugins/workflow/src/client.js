@@ -1,34 +1,33 @@
 window.__ModuleLoader__.load({
-  id: '@dshforge/devflow',
+  id: '@dshforge/workflow',
   factory(require) {
     const React = require('react')
-    const commands = ['batch', 'debug', 'deep-research', 'init', 'review', 'run', 'security-review', 'simplify', 'verify']
     const css = [
-      '.dshforge-devflow-command-input{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}',
-      '.dshforge-devflow-command-input__stack{display:flex;flex-direction:column;align-items:flex-end;min-width:0;max-width:min(calc(var(--dsh-chat-content-width,748px)*0.702),82%);}',
-      '.dshforge-devflow-command-input__bubble{max-width:100%;padding:10px 16px;overflow-wrap:anywhere;border-radius:var(--dsw-radius-xl);background:var(--dsw-specific-bubble);color:var(--dsw-alias-label-primary);font-size:var(--dsh-content-font-size,14px);line-height:calc(22px + var(--dsh-content-font-delta,0px));white-space:pre-wrap;}',
+      '.dshforge-workflow-command-input{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}',
+      '.dshforge-workflow-command-input__stack{display:flex;flex-direction:column;align-items:flex-end;min-width:0;max-width:min(calc(var(--dsh-chat-content-width,748px)*0.702),82%);}',
+      '.dshforge-workflow-command-input__bubble{max-width:100%;padding:10px 16px;overflow-wrap:anywhere;border-radius:var(--dsw-radius-xl);background:var(--dsw-specific-bubble);color:var(--dsw-alias-label-primary);font-size:var(--dsh-content-font-size,14px);line-height:calc(22px + var(--dsh-content-font-delta,0px));white-space:pre-wrap;}',
     ].join('')
-    const tagId = 'dshforge-devflow/command-input.css'
+    const tagId = 'dshforge-workflow/command-input.css'
     if (typeof document !== 'undefined'
       && document.querySelector('style[data-plugin-css=' + JSON.stringify(tagId) + ']') === null) {
       const tag = document.createElement('style')
-      tag.dataset.plugin = 'dshforge-devflow'
+      tag.dataset.plugin = 'dshforge-workflow'
       tag.dataset.pluginCss = tagId
       tag.textContent = css
       document.head.appendChild(tag)
     }
 
-    function CommandInputView({ node, renderFactorySlot, t }) {
+    function WorkflowCommandInputView({ node, renderFactorySlot, t }) {
       const data = node.data
       return React.createElement('div', {
-        className: 'dshforge-devflow-command-input',
-        'data-devflow-command-input': '',
+        className: 'dshforge-workflow-command-input',
+        'data-workflow-command-input': '',
         role: 'group',
         'aria-label': t('commandInput.aria'),
       }, React.createElement('div', {
-        className: 'dshforge-devflow-command-input__stack',
+        className: 'dshforge-workflow-command-input__stack',
       }, React.createElement('div', {
-        className: 'dshforge-devflow-command-input__bubble',
+        className: 'dshforge-workflow-command-input__bubble',
       }, renderFactorySlot('conversation.user.text', {
         text: data.text,
         facts: { commands: [{ start: 0, end: data.command.length + 1, name: data.command }] },
@@ -39,22 +38,24 @@ window.__ModuleLoader__.load({
     const exports = {}
     exports.inject = ['locale', 'slots', 'uiConversation']
     exports.apply = (ctx) => {
-      // command/done has no name. Keep the IDs accepted at command/run so only
-      // DevFlow settlements are claimed; unrelated commands retain the official renderer.
+      // Goal and Compact already own their command input presentation. Other
+      // commands retain the generic card unless a workflow event claims their ID.
+      const officialInputCommands = new Set(['goal', 'compact'])
       const commandIds = new Set()
-      const commandInputDefinition = {
-        kind: 'devflow-command-input',
+      const workflowCommandDefinition = {
+        kind: 'workflow-command-input',
         target: 'chat',
         match(event) {
-          if (event.type === 'command/run' && commands.includes(event.data.name)
-            && typeof event.data.args === 'string') {
+          if (event.type === 'command/run' && !officialInputCommands.has(event.data.name)) {
             return { id: String(event.data.commandId), role: 'start', exclusive: true }
+          }
+          if (event.type === 'workflow/command' && commandIds.has(String(event.data.commandId))) {
+            return { id: String(event.data.commandId), role: 'update' }
           }
           if (event.type === 'command/done' && commandIds.has(String(event.data.commandId))) {
             return { id: String(event.data.commandId), role: 'update', exclusive: true }
           }
           if (event.type === 'user/message' && event.data.source.kind === 'workflow'
-            && commands.includes(event.data.source.name)
             && commandIds.has(String(event.data.source.commandId))) {
             return { id: 'followup:' + String(event.data.id), role: 'start', exclusive: true }
           }
@@ -67,14 +68,22 @@ window.__ModuleLoader__.load({
           return {
             commandId: event.data.commandId,
             command: event.data.name,
-            args: event.data.args,
+            args: event.data.args ?? null,
             seq: event.seq,
             time: event.time,
-            text: `/${event.data.name}${event.data.args.trimEnd()}`,
+            text: '',
+            workflow: false,
             outcome: null,
           }
         },
         update(context, match) {
+          if (match.event.type === 'workflow/command') {
+            return {
+              ...context.state,
+              text: `/${match.event.data.name}${match.event.data.args.trimEnd()}`,
+              workflow: true,
+            }
+          }
           if (match.event.type !== 'command/done') return context.state
           return {
             ...context.state,
@@ -91,43 +100,44 @@ window.__ModuleLoader__.load({
             key: context.key,
             id: context.id,
             target: 'chat',
-            anchorSeq: state.seq - 0.1,
             location: context.start?.location ?? { kind: 'unresolved' },
             visibility: 'visible',
           }
-          if (state.outcome?.kind === 'error') {
+          if (state.workflow && state.outcome?.kind !== 'error') {
             return {
               ...base,
-              kind: 'command',
-              data: {
-                kind: 'command',
-                seq: state.seq,
-                time: state.time,
-                commandId: state.commandId,
-                name: state.command,
-                args: state.args,
-                outcome: state.outcome,
-              },
+              kind: 'workflow-command-input',
+              anchorSeq: state.seq - 0.1,
+              data: { command: state.command, text: state.text },
             }
           }
           return {
             ...base,
-            kind: 'devflow-command-input',
-            data: { command: state.command, text: state.text },
+            kind: 'command',
+            anchorSeq: state.seq,
+            data: {
+              kind: 'command',
+              seq: state.seq,
+              time: state.time,
+              commandId: state.commandId,
+              name: state.command,
+              args: state.args,
+              outcome: state.outcome,
+            },
           }
         },
       }
-      ctx.uiConversation.events.register(commandInputDefinition)
+      ctx.uiConversation.events.register(workflowCommandDefinition)
       ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
         name: 'conversation.chat.node',
-        key: 'devflow-command-input',
-        locale: 'devflow',
-      }, CommandInputView))
-      ctx.effect(() => ctx.locale.register('devflow', {
+        key: 'workflow-command-input',
+        locale: 'dsh-workflow',
+      }, WorkflowCommandInputView))
+      ctx.effect(() => ctx.locale.register('dsh-workflow', {
         zh: { 'commandInput.aria': '指令输入' },
         en: { 'commandInput.aria': 'Command input' },
-      }), 'devflow: dictionaries')
-      ctx.effect(() => () => commandIds.clear(), 'devflow: command input cleanup')
+      }), 'dsh-workflow: dictionaries')
+      ctx.effect(() => () => commandIds.clear(), 'dsh-workflow: command input cleanup')
     }
     return exports
   },

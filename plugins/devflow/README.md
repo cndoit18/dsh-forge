@@ -20,7 +20,7 @@ The filesystem provider is optional when only the bundled commands are needed.
 - `/batch <change>` creates a plan without starting workers. After approval, `/batch continue <approved plan>` assigns independent units to worktree-backed workers.
 - `/init`, `/review`, `/simplify`, `/security-review`, `/debug`, `/run`, and `/verify` run their packaged workflows.
 
-Submitting a slash command queues its original text as a followup user message. DevFlow's Web client presents the nine bundled commands with the official blue command Chip and hides their successful submission receipt; failures retain the generic command error card. The resulting first turn calls the generic `run_workflow` model tool, which starts a Session-owned background Job and returns its Job ID immediately. Starting that turn before the Job keeps the Session visible when another Workspace becomes current; `job_output` collects results and `job_kill` cancels the run.
+Submitting a slash command queues its original text as a followup user message. The resulting first turn calls the generic `run_workflow` model tool, which starts a Session-owned background Job and returns its Job ID immediately. Starting that turn before the Job keeps the Session visible when another Workspace becomes current; `job_output` collects results and `job_kill` cancels the run.
 
 Use `/workflows` to list bundled and filesystem workflows, and `/workflows reload` after changing workflow files.
 
