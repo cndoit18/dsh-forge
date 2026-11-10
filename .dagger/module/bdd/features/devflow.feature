@@ -13,15 +13,15 @@ Feature: DevFlow commands and workflows
 
   Scenario: Deep research submits the original question to the conversation
     When I run the deep research command with a BDD question
-    Then the deep research request appears as a user message and the session stays visible
+    Then the deep research request appears as a blue command without a submission receipt
 
   Scenario: Deep research works with the ptc Agent preset
     When I run deep research with the ptc preset
-    Then the deep research request appears as a user message and the session stays visible
+    Then the deep research request appears as a blue command without a submission receipt
 
   Scenario: Project filesystem workflow runs as a scoped slash command
     When I run a project filesystem workflow
-    Then the project workflow request appears as a user message and the session stays visible
+    Then the project workflow request appears as a blue command without a submission receipt
 
   Scenario: A newly started workflow session stays visible after switching workspaces
     When I run debug in workspace A and create a session in workspace B after its first turn starts
