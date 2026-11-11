@@ -1,6 +1,6 @@
 {
   "name": "@dshforge/workflow",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Workflow registry, slash commands, and background runner for DeepSeek Harness.",
   "main": "lib/index.js",
