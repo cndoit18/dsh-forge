@@ -20,7 +20,7 @@ dsh-forge 是 DeepSeek Harness（DSH）的**容器化构建、运行与 Web 插�
 3. **遵循插件契约**：`plugins/` 下每个包含 `package.json` 的直接子目录是一个独立插件。新增或修改插件时，遵循 `plugins/hello-world/README.md` 的包结构与加载契约，不为安装插件手改全局 Cordis 配置。
 4. **遵守设计系统**：插件 UI 必须遵循 `DESIGN.md`，使用语义化 token 并兼容明暗主题；不引入装饰性颜色或动效。
 5. **保留基础检查**：Go 改动须格式化，并用 `gofmt -l .dagger/module/dsh` 确认无输出；插件 JS 改动须逐文件运行 `node --check`。
-6. **以 BDD + 视频验收**：Web 仅用于调试；最终功能演示和交付证据必须使用 BDD 与视频。功能改动完成前，使用下方命令执行完整 Dagger BDD 并导出产物；静态检查或构建成功不能替代行为验证。
+6. **以 BDD + 视频验收**：Web 仅用于调试；最终功能演示和交付证据必须使用 BDD 与视频。功能改动完成前，使用下方命令执行完整 Dagger BDD 并导出产物；静态检查或构建成功不能替代行为验证。BDD 通过后，还必须逐个查看与本次改动相关场景的视频，核对关键画面中的真实用户操作和结果，确认目标问题确实解决；不得仅以测试通过代替视频核验。
 7. **保护启动凭据**：启动日志中的认证 URL 携带进程令牌，不得提交、公开或复用到其他进程。
 
 ## 源码与构建布局
@@ -35,8 +35,9 @@ dsh-forge 是 DeepSeek Harness（DSH）的**容器化构建、运行与 Web 插�
 | `plugins/hello-world` | 无构建步骤的最小 Client 插件，手写 Host 与浏览器产物 |
 | `plugins/agent-plugins` | Host/Client 插件；esbuild 生成被 gitignore 的 `lib/client.js` |
 | `plugins/workflow` | 保存式 workflow 注册表、scoped commands 与后台 Jobs，无构建脚本 |
+| `plugins/workflows-bundle` | 聚合 workflow、filesystem provider 与 DevFlow 的单次安装 bundle，无构建脚本 |
 | `plugins/workflow-filesystem` | 项目/用户 workflow 文件发现与 Acorn AST + VM meta 解析，无构建脚本 |
-| `plugins/devflow` | 基于共享注册表提供九个默认 workflows 与 Web 命令装饰 |
+| `plugins/devflow` | 基于共享注册表提供九个默认 workflows，无构建脚本 |
 | `scripts/`、`prek.toml` | 插件版本、许可证维护与 submodule 初始化钩子 |
 
 ## 测试与验证
@@ -61,9 +62,7 @@ node --test plugins/devflow/tests/commands.test.js
 ```sh
 dagger --progress=plain call bdd run \
   --plugins ./plugins/agent-plugins \
-  --plugins ./plugins/workflow \
-  --plugins ./plugins/workflow-filesystem \
-  --plugins ./plugins/devflow \
+  --plugins ./plugins/workflows-bundle \
   --mock-data .dagger/module/bdd/testdata/mock-data \
   --ai=true \
   --video \

@@ -85,21 +85,6 @@ test('agent commands refresh from the catalog without replacing external command
   assert.equal(command('alpha'), undefined)
 })
 
-test('slash commands start jobs without queuing a user message', async () => {
-  const { ctx, agent, command, runs, jobs, messages, activateAgent } = createHarness()
-  applyPlugins(ctx)
-  registerWorkflow(ctx)
-  await activateAgent()
-
-  const result = await command('example').handler({ agent, rawInput: ' target', signal: new AbortController().signal })
-  assert.deepEqual(result, { kind: 'success', text: '工作流已启动，任务编号：workflow-test-1。' })
-  assert.equal(runs.length, 1)
-  assert.equal(jobs.length, 1)
-  assert.equal(messages.length, 0)
-  assert.deepEqual(runs[0].spec.args, { input: 'target' })
-  await jobs[0].hooks.done
-})
-
 test('catalog sections follow reloads without user messages and disappear when empty', async () => {
   const { ctx, agent, globalCommands, messages, activateAgent, assemble } = createHarness()
   applyPlugins(ctx)
@@ -129,7 +114,7 @@ test('catalog sections follow reloads without user messages and disappear when e
   assert.equal(messages.length, 0)
 })
 
-test('generic saved workflows receive input and reject unknown names before creating jobs', async () => {
+test('generic workflows receive input and reject unknown names before creating jobs', async () => {
   const { ctx, agent, tools, command, runs, jobs, activateAgent } = createHarness()
   applyPlugins(ctx)
   registerWorkflow(ctx, { input: { hint: '<目标>', required: true } })
@@ -142,7 +127,7 @@ test('generic saved workflows receive input and reject unknown names before crea
   assert.equal(started.name, 'example')
   assert.deepEqual(runs[0].spec.args, { input: 'target' })
   await jobs[0].hooks.done
-  await assert.rejects(tools.get('run_workflow').execute({ name: 'missing', input: '' }, execution(agent)), /Unknown saved workflow/)
+  await assert.rejects(tools.get('run_workflow').execute({ name: 'missing', input: '' }, execution(agent)), /Unknown workflow/)
   assert.equal(jobs.length, 1)
 })
 

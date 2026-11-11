@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { WorkflowRegistry } from './registry.js'
 
 export const name = 'dsh-workflow'
@@ -15,7 +16,7 @@ function modelCatalogText(workflows) {
   const escape = value => value.replaceAll(/\s+/g, ' ').trim()
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
   return [
-    'The following saved workflows are available in this session:',
+    'The following workflows are available in this session:',
     '',
     '<available_workflows>',
     ...workflows.map(workflow => {
@@ -24,7 +25,7 @@ function modelCatalogText(workflows) {
     }),
     '</available_workflows>',
     '',
-    'Use `run_workflow` only when the user explicitly requests one of these saved workflows by name.',
+    'Use `run_workflow` only when the user explicitly requests one of these workflows by name.',
   ].join('\n')
 }
 
@@ -69,17 +70,25 @@ export function apply(ctx) {
         name: definition.name,
         description: definition.description,
         input: { hint: definition.input?.hint ?? '[输入]' },
-        handler: async ({ agent, rawInput, signal: invocationSignal }) => {
+        // The followup starts the first turn, keeping this Session visible when
+        // another Workspace becomes current; command/run retains the input for presentation.
+        handler: async ({ agent: parent, commandId, rawInput, signal: invocationSignal }) => {
           try {
-            const { jobId } = await workflows.start({
-              name: definition.name,
-              input: rawInput,
-              parent: agent,
-              signal: invocationSignal,
+            invocationSignal?.throwIfAborted()
+            const text = rawInput.trimStart()
+            if (definition.input?.required === true && text.trim() === '') {
+              return { kind: 'error', text: `/${definition.name} requires input. ${definition.input.hint}` }
+            }
+            parent.session.append('workflow/command', { commandId, name: definition.name, args: rawInput })
+            parent.followup({
+              id: randomUUID(),
+              role: 'user',
+              content: [{ type: 'text', text: `/${definition.name}${text ? ` ${text}` : ''}` }],
+              source: { kind: 'workflow', name: definition.name, commandId },
             })
-            return { kind: 'success', text: `工作流已启动，任务编号：${jobId}。` }
+            return { kind: 'success', text: '工作流已提交，等待 Agent 启动。' }
           } catch (error) {
-            if (invocationSignal.aborted) throw error
+            if (invocationSignal?.aborted) throw error
             return { kind: 'error', text: error instanceof Error ? error.message : String(error) }
           }
         },
@@ -149,12 +158,12 @@ export function apply(ctx) {
 
   ctx.effect(() => ctx.tools.register({
     name: 'run_workflow',
-    description: 'Start a saved workflow by its exact name when the user explicitly requests that workflow. Saved workflows come from the active project, user directories, or installed bundles. Returns a background job ID; use job_output to collect it and job_kill to cancel it. Do not use this for an ad-hoc JavaScript script; use the workflow tool instead.',
+    description: 'Start a workflow by its exact name when the user explicitly requests it. Workflows come from the active project, user directories, or installed bundles. Returns a background job ID; use job_output to collect it and job_kill to cancel it. Do not use this for an ad-hoc JavaScript script; use the workflow tool instead.',
     parameters: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'Exact saved workflow name without the leading slash.' },
-        input: { type: 'string', description: 'Input passed to the saved workflow. Its definition controls whether this may be empty.' },
+        name: { type: 'string', description: 'Exact workflow name without the leading slash.' },
+        input: { type: 'string', description: 'Input passed to the workflow. Its definition controls whether this may be empty.' },
       },
       required: ['name', 'input'],
       additionalProperties: false,
@@ -178,7 +187,7 @@ export function apply(ctx) {
       toolCall: { callId: exec.callId, rootCallId: exec.rootCallId },
       signal: exec.signal,
     }),
-  }), 'dsh-workflow: saved workflow tool')
+  }), 'dsh-workflow: workflow tool')
 
   ctx.effect(() => () => {
     disposed = true

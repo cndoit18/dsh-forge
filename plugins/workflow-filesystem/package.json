@@ -1,8 +1,8 @@
 {
   "name": "@dshforge/workflow-filesystem",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
-  "description": "Project and user filesystem provider for saved DeepSeek Harness workflows.",
+  "description": "Project and user filesystem provider for DeepSeek Harness workflows.",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",

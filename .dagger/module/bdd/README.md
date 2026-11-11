@@ -1,6 +1,6 @@
 # bdd
 
-TypeScript Dagger PoC for Playwright-BDD with tester-army/e2e. It imports the
+TypeScript Dagger module for Playwright-BDD with tester-army/e2e. It imports the
 existing `dsh` module as `web` and the aimock module as `aimock`. When
 `modelBaseUrl` is omitted, DSH and e2e use the built-in aimock endpoint.
 `plugins` is optional and defaults to an empty array; repeat `--plugins` to add
@@ -8,20 +8,21 @@ plugin directories when needed. `mockData` is also optional: without it, aimock
 starts with an empty fixture set and scenarios that need model output fail
 naturally.
 
-The `ai` fixture skips any scenario when it first reaches an AI step and
-`E2E_AI` is not `1`. Earlier deterministic steps may already have run; this PoC
-does not implement generation-time scenario skipping. This switch only controls
-e2e's own Agent steps, not DSH's use of aimock.
+The `ai` fixture remains available for scenarios that genuinely require
+model-based actions. It skips such a scenario when `E2E_AI` is not `1`;
+deterministic scenarios never request it. The current suite uses executable HTTP,
+DOM, event, and filesystem assertions instead of AI judgments. This switch only
+controls e2e's own Agent steps, not DSH's use of aimock.
 
 ```sh
 # Default aimock with no fixtures: model-backed scenarios fail naturally.
 dagger --progress=plain call bdd run
 
-# With fixtures, DSH agent responds; e2e's AI scenario is skipped.
+# With fixtures, DSH agent responds without e2e AI steps.
 dagger --progress=plain call bdd run \
   --mock-data .dagger/module/bdd/testdata/mock-data
 
-# All scenarios pass, including the OpenAI-compatible complete_step call.
+# Also enable any scenario that explicitly requires e2e AI steps.
 dagger --progress=plain call bdd run \
   --mock-data .dagger/module/bdd/testdata/mock-data \
   --ai=true
@@ -63,9 +64,7 @@ always records video and returns the report, traces, and `test-status.txt`:
 ```sh
 dagger --progress=plain call bdd report \
   --plugins ./plugins/agent-plugins \
-  --plugins ./plugins/workflow \
-  --plugins ./plugins/workflow-filesystem \
-  --plugins ./plugins/devflow \
+  --plugins ./plugins/workflows-bundle \
   --mock-data .dagger/module/bdd/testdata/mock-data \
   --ai=true \
   --output .artifacts/bdd

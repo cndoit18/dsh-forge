@@ -10,6 +10,8 @@ type TestFixtures = {
   e2e: E2ESession<EngineFixtures>;
   ai: Agent;
 };
+
+export type BddE2E = TestFixtures['e2e'];
 type WorkerFixtures = { e2eHost: E2EHost<EngineFixtures> };
 
 export const test = base.extend<TestFixtures, WorkerFixtures>({

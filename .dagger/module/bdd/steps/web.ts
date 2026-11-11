@@ -6,61 +6,25 @@ Given('the authenticated Web GUI is open', async ({ e2e }) => {
   if (!token) throw new Error('DSH_TEST_TOKEN is required');
   await e2e.fixtures.app.open(`/?token=${encodeURIComponent(token)}`);
   const continueButton = e2e.fixtures.screen.getByRole('button', { name: 'Continue' });
-  await continueButton.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
+  await expect.poll(async () => continueButton.isVisible(), { timeout: 1_000 }).toBe(true).catch(() => {});
   if (await continueButton.isVisible()) await continueButton.tap();
   const closeGetStarted = e2e.fixtures.screen.getByRole('dialog', { name: 'Get started' }).getByRole('button', { name: 'Close' });
-  await closeGetStarted.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
+  await expect.poll(async () => closeGetStarted.isVisible(), { timeout: 1_000 }).toBe(true).catch(() => {});
   if (await closeGetStarted.isVisible()) await closeGetStarted.tap();
 });
 
 When('I send {string} to the agent', async ({ e2e }, message: string) => {
-  await e2e.fixtures.browser.evaluate(`(async () => {
-    const message = ${JSON.stringify(message)};
-    const createdResponse = await fetch('/api/session/create', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        type: 'client-request',
-        rpcId: 'bdd-create',
-        method: 'session/create',
-        payload: { args: { request: {} } },
-      }),
-    });
-    const created = await createdResponse.json();
-    const sessionId = created.result?.value?.sessionId;
-    if (!sessionId) throw new Error('session/create failed: ' + JSON.stringify(created.result));
-
-    const promptedResponse = await fetch('/api/session/prompt', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        type: 'client-request',
-        rpcId: 'bdd-prompt',
-        method: 'session/prompt',
-        payload: {
-          args: {
-            request: {
-              requestId: 'bdd-aimock-prompt',
-              sessionId,
-              mode: 'queue',
-              content: [{ type: 'text', text: message }],
-            },
-          },
-        },
-      }),
-    });
-    const prompted = await promptedResponse.json();
-    if (!prompted.result?.ok) throw new Error('session/prompt failed: ' + JSON.stringify(prompted.result));
-    localStorage.setItem('dsh.sessions.current', JSON.stringify({ sessionId }));
-    return sessionId;
-  })()`);
-  await e2e.fixtures.app.open('/');
+  const editor = e2e.fixtures.screen.getByRole('textbox').last();
+  await editor.tap();
+  await editor.fill(message);
+  const send = e2e.fixtures.screen.getByRole('button', { name: /^(Send message|发送消息)$/ }).last();
+  await expect(send).toBeEnabled();
+  await send.tap();
+  const conversation = e2e.fixtures.browser.locator('[data-conversation-region="chat"]');
+  await expect(conversation.getByText(message, { exact: true })).toBeVisible();
 });
 
 Then('I see {string} in the conversation', async ({ e2e }, text: string) => {
-  await expect(e2e.fixtures.screen.getByText(text).first()).toBeVisible();
-});
-
-Then('the conversation input is available', async ({ e2e }) => {
-  await expect(e2e.fixtures.screen.getByRole('textbox').first()).toBeVisible();
+  const conversation = e2e.fixtures.browser.locator('[data-conversation-region="chat"]');
+  await expect(conversation.getByText(text, { exact: true })).toBeVisible();
 });
