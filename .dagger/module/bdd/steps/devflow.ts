@@ -98,7 +98,8 @@ async function submittedMessage(browser: any) {
     const submitted = [...pending, ...events.filter(event => event.type === 'user/message').map(event => event.data)];
     const found = submitted.some(message => message.content?.some(block => block.type === 'text' && block.text === line));
     const turnStarted = events.some(event => event.type === 'turn/start');
-    return { found, commandInput, turnStarted, blank: projection?.values?.sessionListMetadata?.blank ?? null, tools: events.filter(event => event.type === 'tool/call').map(event => event.data.name) };
+    const catalogInSystem = events.some(event => event.type === 'system/message' && event.data.message?.content?.some(block => block.type === 'text' && block.text.includes('<available_workflows>')));
+    return { found, commandInput, turnStarted, catalogInSystem, blank: projection?.values?.sessionListMetadata?.blank ?? null, tools: events.filter(event => event.type === 'tool/call').map(event => event.data.name) };
   })()`);
 }
 
@@ -179,6 +180,7 @@ async function assertQueuedCommand(browser: any) {
   await expect.poll(async () => (await submittedMessage(browser)).commandInput).toBe(true);
   await expect.poll(async () => (await submittedMessage(browser)).found).toBe(true);
   await expect.poll(async () => (await submittedMessage(browser)).turnStarted).toBe(true);
+  await expect.poll(async () => (await submittedMessage(browser)).catalogInSystem).toBe(true);
   await expect.poll(async () => (await submittedMessage(browser)).blank).toBe(false);
 }
 
@@ -284,13 +286,16 @@ async function uiCommandEvidence(browser: any, name: string, line: string) {
     const commandDone = events.find(event => event.type === 'command/done' && event.data.commandId === commandRun?.data.commandId && event.data.kind === 'success');
     const line = ${JSON.stringify(line)};
     const submitted = events.some(event => event.type === 'user/message' && event.data.content?.some(block => block.type === 'text' && block.text === line));
+    const catalogInSystem = events.some(event => event.type === 'system/message' && event.data.message?.content?.some(block => block.type === 'text'
+      && block.text.includes('<available_workflows>') && block.text.includes('/' + ${JSON.stringify(name)} + ':')));
     const blank = projection?.values?.sessionListMetadata?.blank ?? null;
     return {
-      ok: commandRun !== undefined && commandDone !== undefined && submitted && blank === false,
+      ok: commandRun !== undefined && commandDone !== undefined && submitted && catalogInSystem && blank === false,
       sessionId,
       commandRun: commandRun?.data ?? null,
       commandDone: commandDone?.data ?? null,
       submitted,
+      catalogInSystem,
       blank,
       events: events.slice(-20).map(event => event.type),
     };

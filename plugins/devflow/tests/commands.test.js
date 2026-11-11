@@ -15,7 +15,7 @@ async function setup() {
 }
 
 test('slash commands queue a visible user message before any workflow starts', async () => {
-  const { agent, command, runs, jobs, messages, events } = await setup()
+  const { agent, command, runs, jobs, messages, events, assemble } = await setup()
   const result = await command('deep-research').handler({ agent, commandId: 'command-test', rawInput: ' Compare DSH Skills and Workflows', signal: new AbortController().signal })
   assert.deepEqual(result, { kind: 'success', text: '工作流已提交，等待 Agent 启动。' })
   assert.equal(name, 'devflow')
@@ -30,6 +30,8 @@ test('slash commands queue a visible user message before any workflow starts', a
   })
   assert.ok(messages[0].id)
   assert.equal(messages[0].content[0].text, '/deep-research Compare DSH Skills and Workflows')
+  assert.match(assemble(agent)[0].text, /<available_workflows>/)
+  assert.ok(assemble(agent)[0].text.includes('/deep-research'))
   assert.equal(command('deep-research').recordInput, undefined)
 })
 
@@ -203,11 +205,12 @@ test('review defaults to low only when no recognized strength is supplied', asyn
 })
 
 test('unloading removes generated slash commands, model tool, and progress listeners', async () => {
-  const { ctx, agent, tools, listeners, dispose } = await setup()
+  const { ctx, agent, tools, listeners, dispose, assemble } = await setup()
   assert.equal(ctx.commands.list(agent).filter(command => command.name !== 'workflows').length, 9)
   assert.equal(tools.size, 1)
   dispose()
   assert.equal(ctx.commands.list(agent).length, 0)
   assert.equal(tools.size, 0)
+  assert.deepEqual(assemble(agent), [])
   for (const entries of listeners.values()) assert.equal(entries.size, 0)
 })

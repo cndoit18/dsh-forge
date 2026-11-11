@@ -85,6 +85,35 @@ test('agent commands refresh from the catalog without replacing external command
   assert.equal(command('alpha'), undefined)
 })
 
+test('catalog sections follow reloads without user messages and disappear when empty', async () => {
+  const { ctx, agent, globalCommands, messages, activateAgent, assemble } = createHarness()
+  applyPlugins(ctx)
+  const disposeAlpha = registerWorkflow(ctx, { name: 'alpha', description: 'Alpha', whenToUse: 'Use for <research>' })
+  await activateAgent()
+
+  const initial = assemble(agent)
+  assert.equal(initial.length, 1)
+  assert.equal(initial[0].name, 'dsh-workflow:catalog')
+  assert.equal(initial[0].order, 2600)
+  assert.equal(initial[0].interpolate, false)
+  assert.match(initial[0].text, /<available_workflows>/)
+  assert.ok(initial[0].text.includes('/alpha: Alpha When to use: Use for &lt;research&gt;'))
+  assert.equal(messages.length, 0)
+
+  const disposeBeta = registerWorkflow(ctx, { name: 'beta', description: 'Beta' })
+  await globalCommands.get('workflows').handler({ agent, rawInput: 'reload' })
+  assert.ok(assemble(agent)[0].text.includes('/beta: Beta'))
+
+  disposeAlpha()
+  await globalCommands.get('workflows').handler({ agent, rawInput: 'reload' })
+  assert.ok(!assemble(agent)[0].text.includes('/alpha'))
+
+  disposeBeta()
+  await globalCommands.get('workflows').handler({ agent, rawInput: 'reload' })
+  assert.deepEqual(assemble(agent), [])
+  assert.equal(messages.length, 0)
+})
+
 test('generic workflows receive input and reject unknown names before creating jobs', async () => {
   const { ctx, agent, tools, command, runs, jobs, activateAgent } = createHarness()
   applyPlugins(ctx)

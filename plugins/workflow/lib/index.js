@@ -11,6 +11,24 @@ function catalogText(workflows) {
   return workflows.map(workflow => `/${workflow.name} — ${workflow.description} [${workflow.source}]`).join('\n')
 }
 
+function modelCatalogText(workflows) {
+  if (workflows.length === 0) return ''
+  const escape = value => value.replaceAll(/\s+/g, ' ').trim()
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+  return [
+    'The following workflows are available in this session:',
+    '',
+    '<available_workflows>',
+    ...workflows.map(workflow => {
+      const whenToUse = workflow.whenToUse === undefined ? '' : ` When to use: ${escape(workflow.whenToUse)}`
+      return `- /${workflow.name}: ${escape(workflow.description)}${whenToUse}`
+    }),
+    '</available_workflows>',
+    '',
+    'Use `run_workflow` only when the user explicitly requests one of these workflows by name.',
+  ].join('\n')
+}
+
 export function apply(ctx) {
   const workflows = new WorkflowRegistry(ctx)
   const commandStates = new Map()
@@ -24,12 +42,20 @@ export function apply(ctx) {
     }
     const version = ++state.version
     if (state.commandCtx === undefined) {
-      await agent.ctx.inject(['commands'], commandCtx => { state.commandCtx = commandCtx })
+      await agent.ctx.inject(['commands', 'systemPrompt'], commandCtx => { state.commandCtx = commandCtx })
     }
     const cwd = await ctx.workingDirectory.ensure(agent, signal)
     const definitions = await workflows.list({ cwd, signal, strict: options.strict === true })
     const previous = state.disposers
     if (disposed || state.version !== version) return state.definitions
+    if (state.catalogDispose === undefined) {
+      state.catalogDispose = state.commandCtx.systemPrompt.section({
+        name: 'dsh-workflow:catalog',
+        order: state.commandCtx.systemPrompt.getSectionOrder('TOOL_WORKFLOW'),
+        interpolate: false,
+        text: () => modelCatalogText(state.definitions),
+      })
+    }
     const externalNames = new Set(ctx.commands.list(agent)
       .map(command => command.name)
       .filter(name => !previous.has(name)))
@@ -106,6 +132,7 @@ export function apply(ctx) {
     if (state === undefined) return
     state.version++
     for (const dispose of state.disposers.values()) dispose()
+    state.catalogDispose?.()
     state.commandCtx = undefined
     commandStates.delete(agent)
   })
@@ -167,6 +194,7 @@ export function apply(ctx) {
     for (const state of commandStates.values()) {
       state.version++
       state.commandCtx = undefined
+      state.catalogDispose?.()
       for (const dispose of state.disposers.values()) dispose()
     }
     commandStates.clear()

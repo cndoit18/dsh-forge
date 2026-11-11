@@ -22,7 +22,7 @@ The filesystem provider is optional when only the bundled commands are needed.
 
 Submitting a slash command queues its original text as a followup user message. The resulting first turn calls the generic `run_workflow` model tool, which starts a Session-owned background Job and returns its Job ID immediately. Starting that turn before the Job keeps the Session visible when another Workspace becomes current; `job_output` collects results and `job_kill` cancels the run.
 
-Use `/workflows` to list bundled and filesystem workflows, and `/workflows reload` after changing workflow files.
+Use `/workflows` to list bundled and filesystem workflows, and `/workflows reload` after changing workflow files. The refreshed definitions also populate the Agent-scoped `dsh-workflow:catalog` system-prompt section for the next model request.
 
 ## Verification
 
