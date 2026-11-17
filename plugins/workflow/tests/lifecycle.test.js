@@ -157,4 +157,46 @@ test('failed automatic and explicit refreshes withdraw stale commands', async ()
   const recovered = await globalCommands.get('workflows').handler({ agent, rawInput: 'reload' })
   assert.equal(recovered.kind, 'success')
   assert.ok(command('example'))
+
+  failing = true
+  const failedAgain = await globalCommands.get('workflows').handler({ agent, rawInput: 'reload' })
+  assert.equal(failedAgain.kind, 'error')
+  assert.equal(command('example'), undefined, 'an explicit failure must withdraw its own previous command set')
+})
+
+test('a stale automatic refresh failure preserves newer healthy commands', async () => {
+  const { ctx, command, activateAgent } = createHarness()
+  applyPlugins(ctx)
+  let racing = false
+  let calls = 0
+  const slow = Promise.withResolvers()
+  ctx.workflows.registerProvider(() => ({
+    name: 'racing-provider',
+    async list() {
+      if (!racing) return [{
+        name: 'initial', description: 'Initial', source: 'memory', provider: 'racing-provider', rank: 100, locator: null,
+      }]
+      calls++
+      if (calls === 1) return slow.promise
+      return [{
+        name: 'fresh', description: 'Fresh', source: 'memory', provider: 'racing-provider', rank: 100, locator: null,
+      }]
+    },
+    async get() { throw new Error('unreachable') },
+  }))
+  await activateAgent()
+  assert.ok(command('initial'))
+
+  racing = true
+  ctx.emit('workflows/change')
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(calls, 1)
+  ctx.emit('workflows/change')
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(calls, 2)
+  assert.ok(command('fresh'))
+
+  slow.resolve([{ name: 'broken', description: '', source: 'memory', provider: 'racing-provider', rank: 100, locator: null }])
+  await new Promise(resolve => setImmediate(resolve))
+  assert.ok(command('fresh'), 'stale failure must not dispose the newer command set')
 })

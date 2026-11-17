@@ -26,11 +26,11 @@ async function createRepository(t) {
   await writeFile(join(repository, 'unrelated.txt'), 'not part of the plugin')
   await git(repository, 'init', '-b', 'main')
   await git(repository, 'add', '.')
-  await git(repository, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'first')
+  await git(repository, '-c', 'commit.gpgsign=false', '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'first')
   const first = (await git(repository, 'rev-parse', 'HEAD')).stdout.trim()
   await writeFile(join(plugin, 'plugin.json'), JSON.stringify({ $schema: SCHEMA, name: 'demo', version: '2.0.0', description: 'latest ref' }))
   await git(repository, 'add', '.')
-  await git(repository, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'second')
+  await git(repository, '-c', 'commit.gpgsign=false', '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'second')
   const latest = (await git(repository, 'rev-parse', 'HEAD')).stdout.trim()
   return { temporary, repository, first, latest }
 }
@@ -110,12 +110,12 @@ test('initializes nested submodules inside the selected plugin without copying G
     await writeFile(join(path, filename), `${filename}\n`)
     await git(path, 'init', '-b', 'main')
     await git(path, 'add', '.')
-    await git(path, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'initial')
+    await git(path, '-c', 'commit.gpgsign=false', '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'initial')
   }
   await git(child, '-c', 'protocol.file.allow=always', 'submodule', 'add', `file://${nested}`, 'nested')
-  await git(child, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'add nested')
+  await git(child, '-c', 'commit.gpgsign=false', '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'add nested')
   await git(repository, '-c', 'protocol.file.allow=always', 'submodule', 'add', `file://${child}`, 'plugins/demo/vendor/child')
-  await git(repository, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'add child')
+  await git(repository, '-c', 'commit.gpgsign=false', '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'add child')
 
   // Git blocks local submodule transports by default; allow them only in this test process.
   const gitConfig = join(temporary, 'gitconfig')

@@ -77,59 +77,26 @@ async function listPluginDirectory(catalog, payload) {
   return { ok: true, value: { path: relative, entries: rows.slice(0, 200), truncated: rows.length > 200 } }
 }
 
-/** Register the catalog over the existing authenticated Connection fetch bridge. */
+/** Register exact catalog routes on the shared Connection API channel. */
 export function registerAgentPluginsRpc(ctx, catalog, options) {
   const handler = createAgentPluginsRpcHandler(catalog, options)
-  return ctx.get('webServer').register({
-    kind: 'prefix',
-    path: '/agent-plugins',
-    handler: async (request, response) => {
-      const admission = ctx.connection.admit(request)
-      if ('rejection' in admission) {
-        response.writeHead(admission.rejection).end(admission.rejection === 401 ? 'unauthorized' : 'forbidden')
-        return
-      }
-      if (request.method !== 'POST') {
-        response.writeHead(404).end('not found')
-        return
-      }
-      const endpoint = new URL(request.url, 'http://localhost').pathname.slice('/agent-plugins/'.length)
-      if (!['catalog', 'files', 'install', 'oauth'].includes(endpoint)) {
-        response.writeHead(404).end('not found')
-        return
-      }
+  const disposers = ['catalog', 'files', 'install', 'oauth'].map(method => ctx.connection.fetch.register({
+    path: `/api/agent-plugins/${method}`,
+    methods: ['POST'],
+    requestBody: 'buffered',
+    fetch: async request => {
       let message
       try {
-        message = clientRequestSchema.parse(await readJson(request))
+        message = clientRequestSchema.parse(await request.json())
       } catch {
-        response.writeHead(400).end('invalid client-request message')
-        return
+        return new Response('invalid client-request message', { status: 400 })
       }
-      if (message.method !== endpoint) {
-        response.writeHead(400).end('method does not match endpoint')
-        return
-      }
-      const controller = new AbortController()
-      response.on('close', () => controller.abort())
-      const result = await handler(endpoint, message.payload, controller.signal, admission.peer)
-      response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ type: 'server-response', rpcId: message.rpcId, result }))
+      if (message.method !== `agent-plugins/${method}`) return new Response('method does not match endpoint', { status: 400 })
+      const result = await handler(method, message.payload, request.signal, { principal: { kind: 'owner' } })
+      return Response.json({ type: 'server-response', rpcId: message.rpcId, result })
     },
-  })
-}
-
-async function readJson(request) {
-  const chunks = []
-  let size = 0
-  for await (const chunk of request) {
-    size += chunk.byteLength
-    if (size > 1024 * 1024) {
-      request.destroy()
-      throw new Error('request body exceeds 1 MiB')
-    }
-    chunks.push(chunk)
-  }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  }))
+  return async () => { await Promise.all(disposers.map(dispose => dispose())) }
 }
 
 function failure(code, message) {

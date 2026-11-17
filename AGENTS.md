@@ -35,7 +35,7 @@ dsh-forge 是 DeepSeek Harness（DSH）的**容器化构建、运行与 Web 插�
 | `plugins/hello-world` | 无构建步骤的最小 Client 插件，手写 Host 与浏览器产物 |
 | `plugins/agent-plugins` | Host/Client 插件；esbuild 生成被 gitignore 的 `lib/client.js` |
 | `plugins/workflow` | 保存式 workflow 注册表、scoped commands 与后台 Jobs，无构建脚本 |
-| `plugins/workflow-filesystem` | 项目/用户 workflow 文件发现与 Acorn AST + VM meta 解析，无构建脚本 |
+| `plugins/workflow-filesystem` | 项目/用户 workflow 文件发现与 Acorn JSON 字面量 meta 解析，无构建脚本 |
 | `plugins/devflow` | 基于共享注册表提供九个默认 workflows 与 Web 命令装饰 |
 | `scripts/`、`prek.toml` | 插件版本、许可证维护与 submodule 初始化钩子 |
 
@@ -74,7 +74,7 @@ dagger --progress=plain call bdd run \
 
 ## 插件与发布约定
 
-- 插件均为 ESM，要求 Node `>=24.9.0`，当前 DSH 兼容范围为 `>=0.2.1-rc.3 <0.3.0`。
+- 插件均为 ESM，要求 Node `>=24.9.0`；DSH 兼容范围通常为 `>=0.2.1-rc.3 <0.3.0`，`agent-plugins` 因 MCP Manager 与 Settings 图标 Slot 要求 `>=0.2.2-rc.1 <0.3.0`。
 - 包通过 `dsh.bundle.patch` 和自身 `cordis.patch.yml` 加载；Client 声明 `dsh.client.platform: "web"` 并导出 `./client`。
 - 使用命名 `apply`/`inject` 导出。Host 与 Client 分属不同 Cordis 树；浏览器需要 Host 功能时使用窄 RPC，不直接访问 Host service。
 - 共享 DSH runtime 包放在 `peerDependencies`，需要时同时列入 `devDependencies`；私有第三方库放在 `dependencies`。

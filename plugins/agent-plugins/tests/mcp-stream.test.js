@@ -11,9 +11,11 @@ async function proxyUrlFor(t, handler) {
   const disposers = []
   const configs = []
   const ctx = {
-    plugin: async (_client, config) => {
-      configs.push(config)
-      return { config }
+    mcpManager: {
+      register: (_name, config) => {
+        configs.push(config)
+        return () => {}
+      },
     },
     logger: { warn: () => {} },
     effect: callback => {

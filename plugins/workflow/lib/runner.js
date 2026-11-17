@@ -52,7 +52,7 @@ export class WorkflowRunner {
     }
   }
 
-  async start({ name, input = '', parent, toolCall, signal }) {
+  async start({ name, input = '', parent, toolCall, recordsRun = true, signal }) {
     if (parent === undefined) throw new Error('saved workflow requires a calling agent')
     const cwd = await this.ctx.workingDirectory.ensure(parent, signal)
     const definition = await this.workflows.get(name, { cwd, signal })
@@ -77,7 +77,7 @@ export class WorkflowRunner {
           parent,
         })
         this.activeJobs.set(run.id, job)
-        if (this.append(parent.session, 'tool-workflow/run-start', { runId: run.id, name: run.meta.name })) {
+        if (recordsRun && this.append(parent.session, 'tool-workflow/run-start', { runId: run.id, name: run.meta.name })) {
           this.activeSessions.set(run.id, parent.session)
         }
         return {

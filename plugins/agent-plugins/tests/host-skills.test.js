@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import SkillRegistry from '@deepseek-ai/dsh-skill'
+import { provideMcpManager } from './mcp-manager-double.js'
 import { apply } from '../lib/index.js'
 import { createAgentPluginsRpcHandler } from '../lib/rpc.js'
 import { discoverAgentPlugins } from '../lib/discovery.js'
@@ -18,15 +19,15 @@ test('Host activation exposes a real skill and its startup catalog through Conne
   const ctx = new Context()
   const calls = []
   ctx.provide('connection', {
-    admit: () => ({ peer: { principal: { kind: 'owner' } } }),
-  })
-  ctx.provide('webServer', {
-    register: route => {
-      calls.push({ channel: route.path, handler: route.handler })
-      return () => {}
+    fetch: {
+      register: route => {
+        calls.push(route)
+        return async () => {}
+      },
     },
   })
   await ctx.plugin(SkillRegistry)
+  provideMcpManager(ctx)
   t.after(async () => {
     process.env.HOME = previousHome
     await ctx.fiber.dispose()
@@ -46,8 +47,8 @@ test('Host activation exposes a real skill and its startup catalog through Conne
   assert.deepEqual((await ctx.skills.list()).map(skill => skill.name), ['verify'])
   assert.equal((await ctx.skills.get('verify')).content, 'Host-loaded instructions.')
 
-  assert.equal(calls.length, 1)
-  assert.equal(calls[0].channel, '/agent-plugins')
+  assert.equal(calls.length, 4)
+  assert.equal(calls[0].path, '/api/agent-plugins/catalog')
   const result = await createAgentPluginsRpcHandler(catalog)('catalog', null, new AbortController().signal, { principal: { kind: 'owner' } })
   assert.equal(result.ok, true)
   assert.equal(result.value.plugins[0].manifest.name, 'demo')

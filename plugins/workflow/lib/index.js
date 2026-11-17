@@ -65,28 +65,33 @@ export function apply(ctx) {
     return definitions
   }
 
-  const containRefresh = (agent, signal) => refreshAgent(agent, signal).catch(error => {
-    if (disposed) return
-    ctx.logger.warn(`dsh-workflow: failed to refresh commands for agent ${agent.id}: ${String(error)}`)
+  const withdrawCommands = (agent, state, version) => {
+    const current = commandStates.get(agent)
+    if (current !== state || version === undefined || current.version !== version) return
+    for (const dispose of current.disposers.values()) dispose()
+    current.disposers = new Map()
+    current.definitions = []
+  }
+
+  const containRefresh = (agent, signal) => {
+    const pending = refreshAgent(agent, signal)
     const state = commandStates.get(agent)
-    if (state === undefined) return
-    for (const dispose of state.disposers.values()) dispose()
-    state.disposers = new Map()
-    state.definitions = []
-  })
+    const version = state?.version
+    return pending.catch(error => {
+      if (disposed) return
+      ctx.logger.warn(`dsh-workflow: failed to refresh commands for agent ${agent.id}: ${String(error)}`)
+      withdrawCommands(agent, state, version)
+    })
+  }
 
   const refreshExplicit = async agent => {
+    const pending = refreshAgent(agent, undefined, { strict: true })
     const state = commandStates.get(agent)
-    const version = state === undefined ? undefined : state.version
+    const version = state?.version
     try {
-      return await refreshAgent(agent, undefined, { strict: true })
+      return await pending
     } catch (error) {
-      const current = commandStates.get(agent)
-      if (current !== undefined && (version === undefined || current.version === version)) {
-        for (const dispose of current.disposers.values()) dispose()
-        current.disposers = new Map()
-        current.definitions = []
-      }
+      withdrawCommands(agent, state, version)
       throw error
     }
   }
@@ -149,6 +154,7 @@ export function apply(ctx) {
       input,
       parent: exec.agent,
       toolCall: { callId: exec.callId, rootCallId: exec.rootCallId },
+      recordsRun: exec.parent === undefined,
       signal: exec.signal,
     }),
   }), 'dsh-workflow: saved workflow tool')
