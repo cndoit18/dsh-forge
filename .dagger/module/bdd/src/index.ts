@@ -5,6 +5,7 @@ const sourceIgnore = [
   "DESIGN.md",
   "**/node_modules",
   "**/lib",
+  "!plugins/**/lib",
   "**/*.tsbuildinfo",
   "**/apps/web/dist",
   "**/.artifacts",

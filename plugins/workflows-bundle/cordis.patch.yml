@@ -1,0 +1,10 @@
+# Install the complete workflow stack through one bundle.
+- insert:
+    - id: workflow-ptc
+      name: '@deepseek-ai/dsh-workflow-ptc'
+    - id: workflows
+      name: "@dshforge/workflow"
+    - id: workflow-filesystem
+      name: "@dshforge/workflow-filesystem"
+    - id: devflow
+      name: "@dshforge/devflow"

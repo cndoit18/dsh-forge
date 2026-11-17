@@ -1,4 +1,4 @@
-# Discover saved workflows from project and user directories.
+# Discover workflows from project and user directories.
 - insert:
-    - id: saved-workflows-filesystem
+    - id: workflow-filesystem
       name: "@dshforge/workflow-filesystem"

@@ -12,6 +12,7 @@ export function createHarness() {
   const warnings = []
   const agents = []
   const scoped = new Map()
+  const promptSections = new Map()
   const agent = {
     id: 'session-test',
     session: { id: 'session-test', append(type, data) { events.push({ type, data }) } },
@@ -19,6 +20,19 @@ export function createHarness() {
   }
   agent.ctx = {
     async inject(_dependencies, callback) { return callback(this) },
+    systemPrompt: {
+      section(definition) {
+        const entries = promptSections.get(agent) ?? []
+        if (entries.some(entry => entry.name === definition.name)) throw new Error(`section "${definition.name}" is already registered`)
+        entries.push(definition)
+        promptSections.set(agent, entries)
+        return () => promptSections.set(agent, entries.filter(entry => entry !== definition))
+      },
+      getSectionOrder(name) {
+        if (name !== 'TOOL_WORKFLOW') throw new Error(`unexpected section order: ${name}`)
+        return 2600
+      },
+    },
     commands: {
       register(definition) {
         const entries = scoped.get(agent) ?? new Map()
@@ -101,9 +115,12 @@ export function createHarness() {
     }
   }
   const command = name => ctx.commands.find(agent, name)
+  const assemble = receivingAgent => (promptSections.get(receivingAgent) ?? [])
+    .map(section => ({ ...section, text: typeof section.text === 'function' ? section.text() : section.text }))
+    .filter(section => section.text.length > 0)
   return {
     ctx, agent, agents, globalCommands, scoped, tools, runs, jobs, messages, events, warnings,
-    listeners, disposers, workflowEngine, activateAgent, dispose, command,
+    listeners, disposers, workflowEngine, activateAgent, dispose, command, assemble,
   }
 }
 
