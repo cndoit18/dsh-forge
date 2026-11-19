@@ -8,6 +8,7 @@ window.__ModuleLoader__.load({
     const {
       FileTypeIcon,
       Button,
+      Input,
       Modal,
       IconWarningOutlineRegular,
       IconChevronDownOutlineRegular,
@@ -25,21 +26,11 @@ window.__ModuleLoader__.load({
       'M10.384 7.31519L10.384 8.95288L4.84595 8.95288L4.84595 7.31519L10.384 7.31519Z',
     ]
 
-    function createAgentPluginsLogo() {
-      const logo = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-      logo.setAttribute('class', 'ap-agent-plugins-logo')
-      logo.setAttribute('width', '16')
-      logo.setAttribute('height', '16')
-      logo.setAttribute('viewBox', '0 0 18 17')
-      logo.setAttribute('fill', 'none')
-      logo.setAttribute('aria-hidden', 'true')
-      for (const d of agentPluginsLogoPaths) {
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-        path.setAttribute('d', d)
-        path.setAttribute('fill', 'currentColor')
-        logo.appendChild(path)
-      }
-      return logo
+    function AgentPluginsLogo({ size = 16 }) {
+      return h('svg', {
+        className: 'ap-agent-plugins-logo', width: size, height: size,
+        viewBox: '0 0 18 17', fill: 'none', 'aria-hidden': 'true',
+      }, agentPluginsLogoPaths.map(d => h('path', { key: d, d, fill: 'currentColor' })))
     }
 
     const NS = 'agentPlugins'
@@ -47,7 +38,7 @@ window.__ModuleLoader__.load({
       nav: 'Agent plugins', title: 'Agent plugins', intro: 'Inspect plugins and capabilities in ~/.agents/plugins/',
       search: 'Search plugins', emptySearch: 'No matching plugins.',
       loading: 'Loading Agent Plugins…', failed: 'Agent Plugins could not be loaded.', retry: 'Retry',
-      back: 'Agent plugins', overview: 'Overview', skills: 'Skills', mcp: 'MCP', files: 'Files',
+      back: 'Agent plugins', overview: 'Overview', skills: 'Skills', mcp: 'MCP', files: 'Files', detailsTabs: 'Plugin sections',
       version: 'Version', author: 'Author', license: 'License', spec: 'Specification', description: 'Description',
 noSkills: 'This plugin provides no Skills.', noMcp: 'This plugin configures no MCP servers.',
       noFiles: 'This plugin has no previewable files.',
@@ -71,7 +62,7 @@ noSkills: 'This plugin provides no Skills.', noMcp: 'This plugin configures no M
       nav: 'Agent 插件', title: 'Agent 插件', intro: '查看 ~/.agents/plugins/ 中的插件及其能力',
       search: '搜索插件', emptySearch: '没有找到匹配的插件。',
       loading: '正在加载 Agent 插件…', failed: 'Agent 插件加载失败。', retry: '重试',
-      back: 'Agent 插件', overview: '概览', skills: 'Skills', mcp: 'MCP', files: '文件',
+      back: 'Agent 插件', overview: '概览', skills: 'Skills', mcp: 'MCP', files: '文件', detailsTabs: '插件分区',
       version: '版本', author: '作者', license: '许可证', spec: '规范', description: '描述',
 noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务器。',
       noFiles: '此插件没有可预览的文件。',
@@ -94,18 +85,17 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
     const css = `
       .dsh-forge-agent-plugins{container:agent-plugins/inline-size;display:flex;flex-direction:column;gap:12px;width:100%;max-width:760px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px}
       .dsh-forge-agent-plugins *{box-sizing:border-box}
-      .ap-agent-plugins-original-icon{display:none}
-      .ap-agent-plugins-logo{display:block;flex:none;width:16px;height:16px}
+      .ap-agent-plugins-logo{display:block;flex:none}
       .dsh-forge-agent-plugins button,.dsh-forge-agent-plugins input{font:inherit}
       .dsh-forge-agent-plugins button:focus-visible,.dsh-forge-agent-plugins input:focus-visible{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}
       .ap-heading{margin:0;font-size:18px;line-height:26px;font-weight:600}
       .ap-intro{margin:0;color:var(--dsw-alias-label-tertiary);font-size:13px}
       .ap-catalog{display:flex;flex-direction:column;gap:12px;margin-top:2px}
-      .ap-search{position:relative;display:flex;align-items:center;color:var(--dsw-alias-label-tertiary)}
-      .ap-search>svg{position:absolute;left:12px;width:16px;height:16px;pointer-events:none}
-      .ap-search input{width:100%;height:36px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-md);padding:0 34px 0 36px;outline:none;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:13px}
+      .ap-search{position:relative;display:flex;align-items:center;gap:8px;width:100%;height:36px;padding:0 12px;color:var(--dsw-alias-label-tertiary)}
+      .ap-search input{width:100%;height:34px;padding:0;background:transparent;color:var(--dsw-alias-label-primary);font-size:13px}
       .ap-search input::placeholder{color:var(--dsw-alias-label-tertiary)}
-      .ap-search input:focus-visible{border-color:var(--dsw-alias-state-business-primary);box-shadow:0 0 0 2px color-mix(in srgb,var(--dsw-alias-state-business-primary) 18%,transparent)}
+      .ap-search:focus-within{border-color:var(--dsw-alias-state-business-primary);box-shadow:0 0 0 2px color-mix(in srgb,var(--dsw-alias-state-business-primary) 18%,transparent)}
+      .ap-search input:focus-visible{outline:none}
       .ap-toolbar{display:flex;align-items:center;gap:8px}
       .ap-toolbar .ap-search{flex:1;min-width:0}
       .ap-button{display:inline-flex;align-items:center;justify-content:center;flex:none;min-height:32px;padding:4px 12px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;cursor:pointer}
@@ -124,6 +114,8 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
       .ap-guide-content p{margin:0;overflow-wrap:anywhere;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
       .ap-guide-fill{flex:none}
       .ap-install-input{width:100%;height:40px;border:.5px solid var(--dsw-alias-border-l4);border-radius:var(--dsw-radius-md);padding:0 14px;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px}
+      .ap-install-input input:focus-visible{outline:none}
+      .ap-install-input:focus-within{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:2px}
       .ap-install-footer{display:flex;flex-direction:column;gap:16px}
       .ap-install-safety{display:flex;align-items:flex-start;gap:8px;margin:0;padding:10px 12px;border-radius:var(--dsw-radius-md);background:var(--dsw-alias-state-warn-tertiary);color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
       .ap-install-safety>svg{flex:none;margin-top:2px;color:var(--dsw-alias-state-warn-primary)}
@@ -145,6 +137,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
       .ap-status{margin:0;padding:28px 12px;color:var(--dsw-alias-label-tertiary);text-align:center}
       .ap-back{display:inline-flex;align-items:center;align-self:flex-start;gap:4px;height:28px;margin:0 0 2px -6px;padding:0 6px;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);font-size:12px;cursor:pointer}
       .ap-back:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+      .ap-back>span{display:inline-flex;width:12px;height:12px}
       .ap-back svg{width:12px;height:12px}
       .ap-detail-header{display:flex;flex-direction:column;gap:6px}
       .ap-detail-title{margin:0;font-family:var(--ds-font-family-code);font-size:18px;line-height:26px;font-weight:600}
@@ -170,7 +163,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
       .ap-manifest-wide{grid-column:1/-1}
       .ap-manifest-grid dt{margin-bottom:2px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:17px}
       .ap-manifest-grid dd{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
-      .ap-link{padding:0;border:0;background:transparent;color:var(--dsw-alias-state-business-primary);font-size:12px;cursor:pointer;text-align:left}
+      .ap-link{height:auto;padding:0;border:0;background:transparent;color:var(--dsw-alias-state-business-primary);font-size:12px;line-height:20px;cursor:pointer;text-align:left}
       .ap-link:hover{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
       .ap-components{display:flex;flex-direction:column;border-top:.5px solid var(--dsw-alias-border-l2)}
       .ap-component{display:flex;flex-direction:column;gap:5px;padding:12px 0;border-bottom:.5px solid var(--dsw-alias-border-l2)}
@@ -228,7 +221,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
       if (snapshot.status === 'loading') return h('p', { className: 'ap-status' }, t('loading'))
       if (snapshot.status === 'failed') {
         return h('div', { className: 'ap-error' }, h('p', null, snapshot.error || t('failed')),
-          h('button', { type: 'button', className: 'ap-link', onClick: reload }, t('retry')))
+          h(Button, { variant: 'ghost', size: 'sm', className: 'ap-link', onClick: reload }, t('retry')))
       }
       const plugins = snapshot.value?.plugins ?? []
       const selected = plugins.find(plugin => plugin.directoryName === selectedId)
@@ -288,13 +281,12 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
         h('p', { className: 'ap-intro' }, t('intro')),
         h('div', { className: 'ap-catalog' },
           h('div', { className: 'ap-toolbar' },
-            h('label', { className: 'ap-search' },
-              h(IconSearchOutlineRegular, { size: 16 }),
-              h('input', {
-                type: 'search', value: query, placeholder: t('search'), 'aria-label': t('search'),
-                onChange: event => setQuery(event.currentTarget.value),
-              })),
-            h('button', { type: 'button', className: 'ap-button', onClick: onInstall }, t('install'))),
+            h(Input, {
+              className: 'ap-search', icon: h(IconSearchOutlineRegular, { size: 16 }),
+              type: 'search', value: query, placeholder: t('search'), 'aria-label': t('search'),
+              onChange: event => setQuery(event.currentTarget.value),
+            }),
+            h(Button, { variant: 'ghost', size: 'sm', className: 'ap-button', onClick: onInstall }, t('install'))),
           plugins.length === 0 ? null
             : matches.length === 0 ? h('p', { className: 'ap-status' }, t('emptySearch'))
               : h('ul', { className: 'ap-cards' }, matches.map(plugin => h(PluginCard, { key: plugin.directoryName, plugin, onSelect, t })))))
@@ -315,7 +307,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
           }, busy ? t('installing') : t('install'))),
       },
         h('form', { className: 'ap-install-form', onSubmit },
-          h('input', {
+          h(Input, {
             className: 'ap-install-input', type: 'text', value: spec,
             placeholder: t('installPlaceholder'), 'aria-label': t('installTitle'), disabled: busy,
             'data-modal-autofocus': true,
@@ -330,8 +322,8 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
               h('div', { className: 'ap-guide-content' },
                 h('strong', null, t('installGuideTitle')),
                 h('p', null, t('installGuideDescription'))),
-              h('button', {
-                type: 'button', className: 'ap-button ap-guide-fill', disabled: busy,
+              h(Button, {
+                variant: 'ghost', size: 'sm', className: 'ap-button ap-guide-fill', disabled: busy,
                 onClick: () => onSpec('https://github.com/agentplugins/agent-plugins-example.git'),
               }, t('fillExample'))))))
     }
@@ -353,9 +345,36 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
 
     function PluginDetail({ plugin, t, tab, onTab, onBack, onOpenFile, listDirectory, oauthStatus, openAuthorization }) {
       const manifest = plugin.manifest
+      const tabs = [
+        { id: 'overview', label: t('overview') },
+        { id: 'skills', label: 'Skills', count: plugin.skills.length },
+        { id: 'mcp', label: 'MCP', count: plugin.mcpServers.length },
+        { id: 'files', label: t('files') },
+      ]
+      const active = tabs.find(item => item.id === tab) ?? tabs[0]
+      const onTabKeyDown = (event, index) => {
+        let next
+        switch (event.key) {
+          case 'ArrowLeft': next = (index + tabs.length - 1) % tabs.length; break
+          case 'ArrowRight': next = (index + 1) % tabs.length; break
+          case 'Home': next = 0; break
+          case 'End': next = tabs.length - 1; break
+          default: return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        event.currentTarget.parentElement.querySelectorAll('[role="tab"]')[next]?.focus()
+        onTab(tabs[next].id)
+      }
+      const panel = tab === 'overview' ? h(ManifestOverview, { plugin, t })
+        : tab === 'skills' ? h(SkillsView, { plugin, t })
+          : tab === 'mcp' ? h(McpView, { plugin, t, oauthStatus, openAuthorization })
+            : h(FilesView, { plugin, t, onOpenFile, listDirectory })
       return h(React.Fragment, null,
-        h('button', { type: 'button', className: 'ap-back', onClick: onBack },
-          h(IconChevronLeftOutlineRegular, { size: 12 }), t('back')),
+        h(Button, {
+          variant: 'ghost', size: 'sm', className: 'ap-back', onClick: onBack,
+          icon: h(IconChevronLeftOutlineRegular, { size: 12 }),
+        }, t('back')),
         h('div', { className: 'ap-detail-header' },
           h('h2', { className: 'ap-detail-title' }, plugin.name),
           manifest?.description ? h('p', { className: 'ap-detail-description' }, manifest.description) : null,
@@ -364,22 +383,23 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
             h('span', null, 'Agent Plugins 1.0.0'),
             manifest?.license ? h('span', null, manifest.license) : null),
           h('div', { className: 'ap-detail-path' }, h('span', null, t('installPath')), h('code', null, `${plugin.root}/`))),
-        h('div', { className: 'ap-tabs', role: 'tablist', 'aria-label': t('overview') },
-          h(Tab, { id: 'overview', label: t('overview'), tab, onTab }),
-          h(Tab, { id: 'skills', label: 'Skills', count: plugin.skills.length, tab, onTab }),
-          h(Tab, { id: 'mcp', label: 'MCP', count: plugin.mcpServers.length, tab, onTab }),
-          h(Tab, { id: 'files', label: t('files'), tab, onTab })),
-        tab === 'overview' ? h(ManifestOverview, { plugin, t })
-          : tab === 'skills' ? h(SkillsView, { plugin, t })
-            : tab === 'mcp' ? h(McpView, { plugin, t, oauthStatus, openAuthorization })
-              : h(FilesView, { plugin, t, onOpenFile, listDirectory }))
+        h('div', { className: 'ap-tabs', role: 'tablist', 'aria-label': t('detailsTabs') },
+          tabs.map((item, index) => h(Tab, {
+            ...item, key: item.id, tab, onTab, onKeyDown: event => onTabKeyDown(event, index),
+          }))),
+        h('div', {
+          id: `agent-plugins-${active.id}-panel`,
+          role: 'tabpanel',
+          'aria-labelledby': `agent-plugins-${active.id}-tab`,
+        }, panel))
     }
 
-    function Tab({ id, label, count, tab, onTab }) {
+    function Tab({ id, label, count, tab, onTab, onKeyDown }) {
       return h('button', {
-        type: 'button', role: 'tab', className: 'ap-tab', 'data-active': tab === id ? 'true' : 'false',
+        type: 'button', role: 'tab', className: 'ap-tab', id: `agent-plugins-${id}-tab`,
+        'aria-controls': `agent-plugins-${id}-panel`, 'data-active': tab === id ? 'true' : 'false',
         'aria-selected': tab === id ? 'true' : 'false', tabIndex: tab === id ? 0 : -1,
-        onClick: () => onTab(id),
+        onClick: () => onTab(id), onKeyDown,
       }, label, count === undefined ? null : h('span', { className: 'ap-tab-count' }, count))
     }
 
@@ -464,7 +484,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
             h('p', { className: `ap-oauth-message${status.state === 'error' ? ' ap-oauth-error' : ''}`, role: status.state === 'error' ? 'alert' : undefined },
               status.state === 'error' ? `${t('oauthFailed')} ${status.message ?? ''}` : t('oauthPending'))),
           status.authorizationUrl
-            ? h('button', { type: 'button', className: 'ap-button ap-oauth-button', onClick: () => openAuthorization(status.authorizationUrl) }, t('oauthOpen'))
+            ? h(Button, { variant: 'ghost', size: 'sm', className: 'ap-button ap-oauth-button', onClick: () => openAuthorization(status.authorizationUrl) }, t('oauthOpen'))
             : null)
       }
       return null
@@ -542,7 +562,7 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
       if (directory.status === 'loading') return h('li', { className: 'ap-tree-message' }, t('loading'))
       if (directory.status === 'error') {
         return h('li', { className: 'ap-tree-message' },
-          h('button', { type: 'button', className: 'ap-link', onClick: () => loadDirectory(path) }, t('retry')))
+          h(Button, { variant: 'ghost', size: 'sm', className: 'ap-link', onClick: () => loadDirectory(path) }, t('retry')))
       }
       return h(React.Fragment, null,
         directory.entries.map(entry => {
@@ -591,59 +611,16 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
         tag.textContent = css
         document.head.appendChild(tag)
       }
-      // Settings navigation has no icon slot. Mirror its ordered section ledger
-      // and keep this DOM enhancement scoped to the Agent Plugins entry.
-      ctx.effect(() => {
-        let marked
-        let observedModal
-        const restore = () => {
-          if (!marked) return
-          marked.original.classList.remove('ap-agent-plugins-original-icon')
-          marked.logo.remove()
-          marked = undefined
-        }
-        const updateIcon = () => {
-          const modal = document.querySelector('[data-shortcut-modal="settings"]')
-          if (modal !== observedModal) {
-            observedModal = modal
-            observer.disconnect()
-            observer.observe(document.body, { childList: true })
-            if (modal) observer.observe(modal, { childList: true, subtree: true })
-          }
-          if (!modal) {
-            restore()
-            return
-          }
-          const sections = ctx.slots.entries('settings.section')
-            .map(entry => ({ id: entry.options.id, order: entry.options.order ?? 0 }))
-            .sort((a, b) => a.order - b.order)
-          const index = sections.findIndex(section => section.id === 'agent-plugins')
-          const buttons = modal.querySelectorAll('nav button')
-          const target = index < 0 ? undefined : buttons[index]
-          if (marked?.button === target && marked.original.parentNode === target && marked.logo.parentNode === target) return
-          restore()
-          const original = target?.querySelector(':scope > svg')
-          if (!target || !original) return
-          const logo = createAgentPluginsLogo()
-          original.classList.add('ap-agent-plugins-original-icon')
-          original.after(logo)
-          marked = { button: target, original, logo }
-        }
-        const observer = new MutationObserver(updateIcon)
-        observer.observe(document.body, { childList: true })
-        updateIcon()
-        return () => {
-          observer.disconnect()
-          restore()
-        }
-      }, 'agent-plugins: settings navigation icon')
+      ctx.slots.inject('settings.section.icon', () => ctx.slots.register({
+        name: 'settings.section.icon', id: 'agent-plugins',
+      }, AgentPluginsLogo))
       const catalog = createSnapshotStore({ status: 'loading', value: undefined, error: undefined })
       let request = 0
       let started = false
       const load = () => {
         const current = ++request
         catalog.set({ status: 'loading', value: undefined, error: undefined })
-        return ctx.connection.rpc.call('/agent-plugins', 'catalog', null).then(result => {
+        return ctx.connection.rpc.call('/api', 'agent-plugins/catalog', null).then(result => {
           if (current !== request) return
           if (result.ok) catalog.set({ status: 'ready', value: result.value, error: undefined })
           else catalog.set({ status: 'failed', value: undefined, error: result.error.message })
@@ -652,9 +629,9 @@ noSkills: '此插件未提供 Skills。', noMcp: '此插件未配置 MCP 服务�
         })
       }
       ctx.effect(() => () => { request++ }, 'agent-plugins: discard stale catalog responses')
-      const listDirectory = (root, path, signal) => ctx.connection.rpc.call('/agent-plugins', 'files', { root, path }, signal)
-      const install = spec => ctx.connection.rpc.call('/agent-plugins', 'install', { spec })
-      const oauthStatus = (root, server, signal) => ctx.connection.rpc.call('/agent-plugins', 'oauth', { root, server }, signal)
+      const listDirectory = (root, path, signal) => ctx.connection.rpc.call('/api', 'agent-plugins/files', { root, path }, signal)
+      const install = spec => ctx.connection.rpc.call('/api', 'agent-plugins/install', { spec })
+      const oauthStatus = (root, server, signal) => ctx.connection.rpc.call('/api', 'agent-plugins/oauth', { root, server }, signal)
       const openAuthorization = (url) => {
         const protocol = new URL(url).protocol
         if (protocol !== 'http:' && protocol !== 'https:') return

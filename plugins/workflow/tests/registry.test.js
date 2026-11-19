@@ -151,3 +151,22 @@ test('provider disposal aborts its consumers and emits catalog changes', async (
   assert.equal(ctx.workflows.providers.size, 0)
   assert.ok(listeners.has('workflows/change'))
 })
+
+test('nested workflow tool calls keep Jobs but omit top-level Session records', async () => {
+  const { ctx, agent, tools, jobs, events, activateAgent } = createHarness()
+  applyPlugins(ctx)
+  registerWorkflow(ctx)
+  await activateAgent()
+
+  const tool = tools.get('run_workflow')
+  await tool.execute({ name: 'example', input: '' }, execution(agent))
+  await jobs[0].hooks.done
+  assert.deepEqual(events.map(event => event.type), ['tool-workflow/run-start', 'tool-workflow/run-end'])
+
+  events.length = 0
+  const nestedExecution = { ...execution(agent), parent: { callId: 'parent-tool-call' } }
+  await tool.execute({ name: 'example', input: '' }, nestedExecution)
+  await jobs[1].hooks.done
+  assert.equal(jobs.length, 2)
+  assert.deepEqual(events, [])
+})

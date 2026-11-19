@@ -7,7 +7,7 @@ import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import * as McpClient from '@deepseek-ai/dsh-mcp-client'
+import { provideMcpManager } from './mcp-manager-double.js'
 import { createMcpClientConfig, mcpServerName } from '../lib/mcp.js'
 
 const fixtureServer = fileURLToPath(new URL('./fixtures/agent-plugin/bin/mcp-server.js', import.meta.url))
@@ -23,11 +23,23 @@ async function execute(ctx, name, args) {
   }
 }
 
+
+async function waitFor(check, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const value = await check()
+    if (value) return value
+    await new Promise(resolve => setTimeout(resolve, 25))
+  }
+  throw new Error('condition did not become true before timeout')
+}
+
 test('real stdio MCP discovery and execution uses translated plugin paths', { timeout: 30_000 }, async (t) => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'dsh-agent-mcp-integration-')))
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  provideMcpManager(ctx)
   t.after(async () => {
     await ctx.fiber.dispose()
     await rm(root, { recursive: true, force: true })
@@ -42,9 +54,9 @@ test('real stdio MCP discovery and execution uses translated plugin paths', { ti
     },
     dataDirectory: join(root, 'data'),
   })
-  await ctx.plugin(McpClient, { ...config, failOnStartupError: true })
-
   const namespace = mcpServerName('demo', 'local')
+  ctx.mcpManager.register(namespace, config)
+  await waitFor(() => ctx.tools.get(`mcp__${namespace}__add`))
   const names = ctx.tools.schemas().map(schema => schema.name)
   assert.ok(names.includes(`mcp__${namespace}__add`))
   assert.ok(names.includes(`mcp__${namespace}__environment`))

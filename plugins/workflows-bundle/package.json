@@ -23,7 +23,7 @@
   "dependencies": {
     "@dshforge/devflow": "0.2.5",
     "@dshforge/workflow": "0.1.5",
-    "@dshforge/workflow-filesystem": "0.1.1"
+    "@dshforge/workflow-filesystem": "0.1.2"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-commands": ">=0.2.1-rc.3 <0.3.0",

@@ -1,6 +1,6 @@
 {
   "name": "@dshforge/agent-plugins",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "type": "module",
   "description": "Agent Plugins v1 Skills and MCP support for DeepSeek Harness Web.",
   "repository": {
@@ -24,7 +24,7 @@
     "test": "node --test tests/*.test.js"
   },
   "engines": {
-    "dsh": ">=0.2.1-rc.3 <0.3.0",
+    "dsh": ">=0.2.2-rc.1 <0.3.0",
     "node": ">=24.9.0"
   },
   "dsh": {
@@ -53,7 +53,7 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
     "@deepseek-ai/dsh-client-connection": ">=0.2.1-rc.3 <0.3.0",
-    "@deepseek-ai/dsh-mcp-client": ">=0.2.1-rc.3 <0.3.0",
+    "@deepseek-ai/dsh-mcp-manager": ">=0.2.2-rc.1 <0.3.0",
     "@deepseek-ai/dsh-skill": ">=0.2.1-rc.3 <0.3.0"
   },
   "devDependencies": {

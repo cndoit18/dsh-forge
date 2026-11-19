@@ -32,7 +32,7 @@ return await pipeline(files, file => agent(`Audit ${file}`))
 
 `export const meta` must be the first statement: an `ExportNamedDeclaration` containing exactly one `const meta` binding initialized by an `ObjectExpression`. Acorn parses the complete module and supplies the declaration end offset used to separate the workflow body. Supported fields are `name`, `description`, `whenToUse`, `phases`, and the provider-owned `input` extension; `input` is removed before the official engine validates metadata. The body is plain JavaScript with top-level `await`, using the official `agent`, `pipeline`, `parallel`, `phase`, `log`, and `args` hooks.
 
-Only the metadata object expression is evaluated during discovery, in an empty `node:vm` context with a timeout and dynamic code generation disabled. The body is not evaluated until execution. Acorn identifies the syntax; it does not execute code. VM metadata evaluation is for trusted local workflow directories, not remote or untrusted content.
+During discovery, Acorn decodes only JSON literal nodes and rejects executable nodes, including functions, getters, spread properties, computed properties, and interpolated templates. The body is not evaluated during discovery; it is passed to the official engine for execution.
 
 ## Refresh and verification
 

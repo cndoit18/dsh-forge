@@ -77,9 +77,8 @@ func isWorkflowBundleDependency(name string) bool {
 const dshProfilesDir = "/root/.dsh/profiles"
 
 // webContainer builds DSH from source and installs every requested plugin
-// into the web profile. The plugin installs run in an installer container
-// parallel to the DSH build; the main container imports the resulting
-// profile files instead of running the installs itself.
+// into the web profile. The installer consumes the built Host, then exports
+// the resulting profile files into the main container.
 func (m *Dsh) webContainer(ctx context.Context, source *dagger.Directory, plugins []*dagger.Directory) (*dagger.Container, error) {
 	built, err := m.buildPlugins(ctx, source, plugins)
 	if err != nil {
@@ -105,7 +104,7 @@ func (m *Dsh) webContainer(ctx context.Context, source *dagger.Directory, plugin
 		// mounts its loader row, and installation selects it by default.
 		// The link symlinks in the profile point at pluginsRoot, so the built
 		// artifacts are mounted there in both containers.
-		installer := base
+		installer := container
 		installs := make([]string, 0, len(built))
 		aggregate := false
 		for _, plugin := range built {

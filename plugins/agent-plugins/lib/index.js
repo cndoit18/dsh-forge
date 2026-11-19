@@ -7,7 +7,7 @@ import { mountAgentPluginMcpServers } from './mcp.js'
 import { installAgentPlugin } from './install.js'
 
 export const name = 'agent-plugins'
-export const inject = ['skills', 'connection', 'webServer']
+export const inject = ['skills', 'connection', 'mcpManager']
 
 /** Mount Agent Plugin discovery and the strict Skills provider. */
 export async function apply(ctx) {
@@ -29,18 +29,9 @@ export async function apply(ctx) {
     if (plugin !== undefined) await mountAgentPluginMcpServers(ctx, [plugin], { dataDirectory, oauthSessions })
     return installed
   }
-  let rpcRegistered = false
   for (const issue of catalog.diagnostics) {
     ctx.logger.warn(`[agent-plugins] ${issue.plugin ?? 'catalog'}: ${issue.message}`)
   }
-  const register = () => {
-    if (rpcRegistered || ctx.get('webServer') === undefined) return
-    rpcRegistered = true
-    ctx.effect(() => registerAgentPluginsRpc(ctx, () => catalog, { install, oauthSessions }), 'agent-plugins: catalog route')
-  }
-  register()
-  ctx.on('internal/service', (name) => {
-    if (name === 'webServer') register()
-  })
+  ctx.effect(() => registerAgentPluginsRpc(ctx.root, () => catalog, { install, oauthSessions }), 'agent-plugins: catalog route')
   await mountAgentPluginMcpServers(ctx, catalog.plugins, { dataDirectory, oauthSessions })
 }

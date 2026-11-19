@@ -4,10 +4,21 @@ import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import { provideMcpManager } from './mcp-manager-double.js'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { toNodeHandler } from '@modelcontextprotocol/node'
 import { z } from 'zod'
 import { mountAgentPluginMcpServers } from '../lib/mcp.js'
+
+async function waitFor(check, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const value = await check()
+    if (value) return value
+    await new Promise(resolve => setTimeout(resolve, 25))
+  }
+  throw new Error('condition did not become true before timeout')
+}
 
 test('cross-origin redirects never receive configured credentials implicitly', { timeout: 15_000 }, async (t) => {
   const seen = []
@@ -42,6 +53,7 @@ test('cross-origin redirects never receive configured credentials implicitly', {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  provideMcpManager(ctx)
   t.after(async () => {
     await ctx.fiber.dispose()
     await handler.close()
@@ -56,6 +68,7 @@ test('cross-origin redirects never receive configured credentials implicitly', {
     }],
   }
   await mountAgentPluginMcpServers(ctx, [plugin], { dataDirectory: '/tmp/agent-plugin-data' })
+  await waitFor(() => redirectSeen.includes('/start'))
   assert.equal(seen.some(headers => headers.authorization || headers.custom), false)
   assert.equal(redirectSeen.includes('/next'), false)
 })
@@ -65,9 +78,11 @@ test('failed MCP mount closes the redirect guard created for that attempt', asyn
   const disposers = []
   const ctx = {
     effect: execute => { disposers.push(execute()) },
-    plugin: endpoint => {
-      calls.push(endpoint)
-      throw new Error('mount failed')
+    mcpManager: {
+      register: (_name, config) => {
+        calls.push(config)
+        throw new Error('mount failed')
+      },
     },
     logger: { warn: () => {} },
   }

@@ -1,6 +1,6 @@
 {
   "name": "@dshforge/workflow-filesystem",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Project and user filesystem provider for DeepSeek Harness workflows.",
   "main": "lib/index.js",
@@ -28,9 +28,11 @@
     }
   },
   "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.19.0",
     "@dshforge/workflow": ">=0.1.0 <0.2.0"
   },
   "devDependencies": {
+    "@deepseek-ai/schemastery": "^3.19.0",
     "@dshforge/workflow": "link:../workflow"
   },
   "license": "Apache-2.0"

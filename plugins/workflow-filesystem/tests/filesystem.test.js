@@ -18,7 +18,7 @@ phase('Audit')
 return await agent('Audit routes', { schema: { type: 'object' } })
 `
 
-test('VM reads only metadata and preserves the script body', () => {
+test('metadata decoding reads only metadata and preserves the script body', () => {
   const parsed = parseWorkflowSource(validSource)
   assert.equal(parsed.meta.name, 'audit-routes')
   assert.equal(parsed.meta.phases[0].title, 'Audit')
@@ -29,8 +29,8 @@ test('VM reads only metadata and preserves the script body', () => {
 throw new Error('body must not run during discovery')`))
 })
 
-test('metadata evaluation has no Host globals and rejects invalid file shapes', () => {
-  assert.throws(() => parseWorkflowSource(`export const meta = { name: process.env.NAME, description: 'Bad' }`), /process is not defined/)
+test('metadata decoding rejects executable nodes and invalid file shapes', () => {
+  assert.throws(() => parseWorkflowSource(`export const meta = { name: process.env.NAME, description: 'Bad' }`), /only JSON literals/)
   assert.throws(() => parseWorkflowSource('return 1'), /must be the first statement/)
   assert.throws(() => parseWorkflowSource(`export const meta = { name: ` + "'demo'" + `, description: 'Bad', extra: true }`), /unsupported workflow meta field/)
   const template = parseWorkflowSource(`export const meta = { name: 'demo', description: ` + '`Static template description`' + ` }`)

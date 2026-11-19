@@ -52,7 +52,7 @@ Each direct child of `~/.agents/plugins/` is one Agent Plugin package. A package
 ```
 
 - **Skills** — immediate `skills/<name>/SKILL.md` entries are validated against the Agent Skills contract and exposed through the existing DSH skill registry. The `skills/` location and immediate skill directories may be symlinks whose resolved paths stay within the plugin root. Skill bodies are revalidated and read on demand. String-valued standard metadata and nested client-owned metadata are preserved as opaque values; this bundle does not execute or enforce client-specific fields such as `requires`.
-- **MCP** — the root `mcp.json` supports independent `stdio` and `streamable-http` server mounting through `dsh-mcp-client`. Legacy `sse` entries are reported as unsupported and skipped.
+- **MCP** — the root `mcp.json` supports independent `stdio` and `streamable-http` server registration through `ctx.mcpManager.register`, with connections and tools owned by `dsh-mcp-client`. Legacy `sse` entries are reported as unsupported and skipped.
 
 The bundle validates `plugin.json` before loading any component. Fatal manifest errors reject that package; invalid Skills, MCP documents, and individual servers fail independently with diagnostics. Unknown manifest top-level fields and non-object `extensions` values are reported and ignored.
 
@@ -103,7 +103,7 @@ The forwarder listens on `127.0.0.1` by default. For isolated container port-for
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The Host entry registers the Skill provider, owner-only catalog RPC, Git installer, and MCP mounts. The Client entry registers the `settings.section` contribution and uses the authenticated Connection bridge for catalog, installation, directory, and OAuth operations.
+The Host entry registers the Skill provider, owner-only catalog RPC, Git installer, and MCP mounts. The Client entry registers the `settings.section` and `settings.section.icon` contributions and uses the authenticated Connection RPC bridge for catalog, installation, directory, and OAuth operations.
 
 | Path | Responsibility |
 |---|---|
@@ -128,7 +128,8 @@ The browser build uses esbuild and emits `lib/client.js` as an IIFE bundle. DSH 
 ## Further Exploration
 
 - [Skill registry](../../third_party/deepseek-harness/packages/skill/skill/README.md) — the DSH Skill provider and loading contract used by this bundle.
-- [MCP client](../../third_party/deepseek-harness/packages/mcp/mcp-client/README.md) — the MCP mounting and tool-integration layer.
+- [MCP manager](../../third_party/deepseek-harness/packages/mcp/mcp-manager/README.md) — plugin-owned server registration and lifetime.
+- [MCP client](../../third_party/deepseek-harness/packages/mcp/mcp-client/README.md) — the MCP connection and tool-integration layer.
 - [Client modules](../../third_party/deepseek-harness/docs/subsystems/client-modules.md) — DSH's Host-and-Client package loading model.
 - [Slots reference](../../third_party/deepseek-harness/docs/subsystems/slots.md) — the Settings contribution's registration lifetime.
 - [Hello World](../hello-world/README.md) — the project's minimal browser-only plugin example.
@@ -181,7 +182,7 @@ Mounting, removing, or changing MCP servers can change later tool declarations a
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-Development requires Node.js 24.9.0 or later and a DSH version satisfying `>=0.2.1-rc.3 <0.3.0`. From this package directory, run:
+Development requires Node.js 24.9.0 or later and a DSH version satisfying `>=0.2.2-rc.1 <0.3.0`. From this package directory, run:
 
 ```sh
 pnpm install

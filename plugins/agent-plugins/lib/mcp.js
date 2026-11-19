@@ -4,7 +4,6 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import * as McpClient from '@deepseek-ai/dsh-mcp-client'
 import { createMcpOAuthSession } from './mcp-oauth.js'
 import { resolveLaunchInside } from './paths.js'
 import { errorMessage, invalidAgentPlugin } from './validation.js'
@@ -24,15 +23,12 @@ export function expandPluginVariables(value, pluginRoot, pluginData) {
 
 /** Translate one validated Agent Plugins server into the existing DSH client config. */
 export async function createMcpClientConfig({ plugin, server, dataDirectory }) {
-  const serverName = mcpServerName(plugin.directoryName, server.name)
   if (server.type === 'streamable-http') {
-    return McpClient.Config({
+    return {
       transport: 'streamable-http',
-      serverName,
       url: server.url,
       headers: server.headers ?? {},
-      failOnStartupError: false,
-    })
+    }
   }
   if (server.type !== 'stdio') {
     throw invalidAgentPlugin(`unsupported MCP transport ${JSON.stringify(server.type)}`, join(plugin.root, 'mcp.json'))
@@ -54,15 +50,13 @@ export async function createMcpClientConfig({ plugin, server, dataDirectory }) {
   env.PLUGIN_ROOT = pluginRoot
   env.PLUGIN_DATA = pluginData
 
-  return McpClient.Config({
+  return {
     transport: 'stdio',
-    serverName,
     command,
     args,
     env,
     cwd,
-    failOnStartupError: false,
-  })
+  }
 }
 
 /** Mount every valid server independently; one failure never blocks siblings. */
@@ -88,7 +82,7 @@ export async function mountAgentPluginMcpServers(ctx, plugins, {
           })
           proxy = guarded.proxy
           if (lifecycle.disposed) throw new Error('Agent Plugins mount was disposed during startup')
-          return await ctx.plugin(McpClient, guarded.config)
+          return ctx.mcpManager.register(mcpServerName(plugin.directoryName, server.name), guarded.config)
         } catch (error) {
           if (proxy) {
             const index = proxies.indexOf(proxy)

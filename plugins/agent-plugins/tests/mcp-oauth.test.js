@@ -8,6 +8,7 @@ import test from 'node:test'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import { provideMcpManager } from './mcp-manager-double.js'
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { toNodeHandler } from '@modelcontextprotocol/node'
 import { z } from 'zod'
@@ -167,6 +168,7 @@ test('OAuth authorization, callback, refresh, and real MCP execution work end to
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  provideMcpManager(ctx)
   t.after(() => ctx.fiber.dispose())
   const oauthSessions = new Map()
   await mountAgentPluginMcpServers(ctx, [{

@@ -111,10 +111,12 @@ test('mounting isolates config and startup failures without exposing config valu
   const calls = []
   const warnings = []
   const ctx = {
-    plugin: async (_client, config) => {
-      calls.push(config)
-      if (calls.length === 2) throw new Error('startup failed')
-      return { config }
+    mcpManager: {
+      register: (name, config) => {
+        calls.push({ name, config })
+        if (calls.length === 2) throw new Error('startup failed')
+        return () => {}
+      },
     },
     logger: { warn: message => warnings.push(message) },
     effect: callback => callback(),
