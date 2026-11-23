@@ -43,6 +43,8 @@ Providers with lazy loading implement `list()` and `get(candidate, options)` and
 
 Definitions support `name`, `description`, optional `whenToUse`, `phases`, `input`, `source`, `provider`, `path`, `script`, and an optional `createArgs(input)` mapper. Without a mapper, scripts receive `args.input`. `ctx.workflows.parse` exposes the shared Acorn parser to bundled and filesystem providers through Cordis, so independently installed bundles do not import each other's files. Script files declare `export const meta = { … }` before the body; the parser validates that declaration and returns the body without evaluating it.
 
+At each run's start, the runner reads the live `subagent.maxActiveSubagents` value through the optional official Settings service and applies it as one FIFO ceiling across all `agent()` calls, including nested `parallel()` and `pipeline()` work. Without the Settings service or namespace, it uses the official default of 8. This bounds agents started by the saved workflow; other activations already occupying the same subagent tree still count toward the runtime's shared pool.
+
 ## Limits
 
 - The registry does not watch files. Use `/workflows reload` after editing discovery directories.
