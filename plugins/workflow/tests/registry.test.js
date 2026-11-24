@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { runInNewContext } from 'node:vm'
 import { applyPlugins, createHarness, execution, registerWorkflow } from './harness.js'
 
 function memoryCandidate(name, rank, description = name) {
@@ -129,6 +130,52 @@ test('generic workflows receive input and reject unknown names before creating j
   await jobs[0].hooks.done
   await assert.rejects(tools.get('run_workflow').execute({ name: 'missing', input: '' }, execution(agent)), /Unknown workflow/)
   assert.equal(jobs.length, 1)
+})
+
+test('saved workflows read subagent capacity and bound nested parallel agents', async () => {
+  const { ctx, agent, tools, runs, jobs } = createHarness()
+  ctx.settings = {
+    describe: () => [{ ns: 'subagent', value: { maxActiveSubagents: 2 } }],
+  }
+  ctx.get = name => name === 'settings' ? ctx.settings : undefined
+  applyPlugins(ctx)
+  registerWorkflow(ctx, {
+    script: `
+      const first = await parallel(Array.from({ length: 6 }, (_, index) => () => agent(String(index))))
+      return parallel(first.map(value => () => parallel([
+        () => agent(value + ':a'),
+        () => agent(value + ':b'),
+      ])))
+    `,
+  })
+  await tools.get('run_workflow').execute({ name: 'example', input: '' }, execution(agent))
+  await jobs[0].hooks.done
+
+  let active = 0
+  let maximum = 0
+  let calls = 0
+  const result = await runInNewContext(`(async () => { ${runs[0].spec.script}
+ })()`, {
+    args: runs[0].spec.args,
+    agent: async prompt => {
+      active++
+      calls++
+      maximum = Math.max(maximum, active)
+      try {
+        await new Promise(resolve => setImmediate(resolve))
+        if (prompt === '2:a') throw new Error('failed agent')
+        return prompt
+      } finally {
+        active--
+      }
+    },
+    parallel: async thunks => Promise.all(thunks.map(async thunk => {
+      try { return await thunk() } catch { return null }
+    })),
+  })
+  assert.equal(calls, 18)
+  assert.equal(maximum <= 2, true, `observed ${maximum} concurrent agents`)
+  assert.equal(result.length, 6)
 })
 
 test('provider disposal aborts its consumers and emits catalog changes', async () => {

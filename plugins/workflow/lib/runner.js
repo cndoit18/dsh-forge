@@ -1,3 +1,40 @@
+const DEFAULT_MAX_ACTIVE_SUBAGENTS = 8
+
+function resolveMaxActiveSubagents(ctx) {
+  const configured = ctx.get?.('settings')?.describe()
+    .find(descriptor => descriptor.ns === 'subagent')?.value?.maxActiveSubagents
+  return Number.isSafeInteger(configured) && configured > 0
+    ? configured
+    : DEFAULT_MAX_ACTIVE_SUBAGENTS
+}
+
+// The PTC engine's CPU-based queue does not share the subagent activation pool.
+// Shadow the script hook with a FIFO semaphore so nested parallel() calls share
+// one run-wide ceiling and a settled agent transfers its slot to the next waiter.
+function limitSubagentConcurrency(script, limit) {
+  return `return (async agent => {
+${script}
+})((originalAgent => {
+  const limit = ${JSON.stringify(limit)}
+  let active = 0
+  const waiting = []
+  return async (...args) => {
+    if (active >= limit || waiting.length > 0) {
+      await new Promise(resolve => waiting.push(resolve))
+    } else {
+      active++
+    }
+    try {
+      return await originalAgent(...args)
+    } finally {
+      const next = waiting.shift()
+      if (next === undefined) active--
+      else next()
+    }
+  }
+})(agent))`
+}
+
 function workflowMeta(definition) {
   return {
     name: definition.name,
@@ -71,7 +108,7 @@ export class WorkflowRunner {
       ...toolCall === undefined ? {} : { toolCall },
       run: job => {
         run = this.ctx.workflowEngine.start({
-          script: definition.script,
+          script: limitSubagentConcurrency(definition.script, resolveMaxActiveSubagents(this.ctx)),
           meta: workflowMeta(definition),
           args,
           parent,
